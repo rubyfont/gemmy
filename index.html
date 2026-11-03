@@ -152,18 +152,6 @@
   }
 
   // ===== サーバー連携 =====
-  function apiPost(btn, done) {
-    var ifr = document.createElement('iframe');
-    ifr.name = 'mbpost' + Date.now(); ifr.style.display = 'none';
-    document.body.appendChild(ifr);
-    var f = document.createElement('form');
-    f.method = 'POST'; f.action = API; f.target = ifr.name; f.style.display = 'none';
-    var inp = document.createElement('input');
-    inp.name = 'btn'; inp.value = btn; f.appendChild(inp);
-    document.body.appendChild(f);
-    f.submit();
-    setTimeout(function () { if (done) done(); }, 1500);
-  }
   function apiGet(btn, cb) {
     var name = 'mbcb' + Date.now();
     var sc = document.createElement('script');
@@ -207,15 +195,17 @@
             return;
           }
           clapMsg.textContent = '拍手 ' + n + ' 回を送っています…';
-          apiPost('mb_clap\n' + PERF + '\n' + n, function () {
-            apiGet('mb_list\n' + NAME, function (d) {
-              var total = null;
-              if (d && d.list) for (var i = 0; i < d.list.length; i++) if (String(d.list[i].no) === String(PERF)) total = d.list[i].claps;
-              clapMsg.textContent = total != null
-                ? '👏 拍手 ' + n + ' 回を集計に加えました（合計 ' + total + '）。ゲームに戻って確認できます。'
-                : '👏 拍手 ' + n + ' 回を送りました。ゲームに戻って確認できます。';
-              startBtn.disabled = false;
-            });
+          var sendDone = false;
+          var sendTo = setTimeout(function () {
+            if (sendDone) return; sendDone = true;
+            clapMsg.textContent = '送信を確認できませんでした。通信環境をご確認のうえ、もう一度お試しください。';
+            startBtn.disabled = false;
+          }, 12000);
+          apiGet('mb_clap\n' + PERF + '\n' + n, function (d) {
+            if (sendDone) return; sendDone = true; clearTimeout(sendTo);
+            if (d && d.ok) clapMsg.textContent = '👏 拍手 ' + n + ' 回を集計に加えました（合計 ' + d.claps + '）。ゲームに戻って確認できます。';
+            else clapMsg.textContent = '送信できませんでした（' + (d && d.error ? d.error : '通信エラー') + '）。もう一度お試しください。';
+            startBtn.disabled = false;
           });
         }, 1000);
       });
