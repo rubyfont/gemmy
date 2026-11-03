@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<script>
+window.SG_PAGES_HOST = true;
+(function () {
+  var API = 'https://script.google.com/macros/s/AKfycbz5XcPVAyCdzev2eyzOi5zNC2iHiaLuAZC4hYIUgZh1Y4hlLZ_3vP3Hs70gbbIa-9g3/exec';
+  var seq = 0;
+  function jsonp(params, ok, ng) {
+    seq++;
+    var cbName = '__sgCb' + seq + '_' + Date.now();
+    var done = false;
+    var script = document.createElement('script');
+    function finish(val, isErr) {
+      if (done) return; done = true;
+      try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
+      if (script.parentNode && script.parentNode.removeChild) script.parentNode.removeChild(script);
+      if (isErr) { if (ng) ng(val); } else if (ok) ok(val);
+    }
+    window[cbName] = function (d) { finish(d, false); };
+    var qs = ['callback=' + encodeURIComponent(cbName)];
+    for (var k in params) qs.push(k + '=' + encodeURIComponent(params[k] == null ? '' : String(params[k])));
+    script.src = API + '?' + qs.join('&');
+    script.onerror = function () { finish(new Error('通信エラー'), true); };
+    (document.head || document.body).appendChild(script);
+    setTimeout(function () { finish(new Error('通信タイムアウト'), true); }, 30000);
+  }
+  function postForm(params, ok, ng) {
+    seq++;
+    var ifr = document.createElement('iframe');
+    ifr.name = 'sgpost' + seq + '_' + Date.now();
+    ifr.style.display = 'none';
+    var form = document.createElement('form');
+    form.method = 'POST'; form.action = API; form.target = ifr.name; form.style.display = 'none';
+    for (var k in params) {
+      var inp = document.createElement('input');
+      inp.type = 'hidden'; inp.name = k; inp.value = params[k] == null ? '' : String(params[k]);
+      form.appendChild(inp);
+    }
+    var done = false;
+    function finish(err) {
+      if (done) return; done = true;
+      setTimeout(function () {
+        if (ifr.parentNode) ifr.parentNode.removeChild(ifr);
+        if (form.parentNode) form.parentNode.removeChild(form);
+      }, 0);
+      if (err) { if (ng) ng(err); } else if (ok) ok(null);
+    }
+    ifr.onload = function () { finish(null); };
+    document.body.appendChild(ifr); document.body.appendChild(form);
+    form.submit();
+    setTimeout(function () { finish(new Error('通信タイムアウト')); }, 30000);
+  }
+  function call(name, args, ok, ng) {
+    var p = { api: name };
+    if (name === 'apiScriptGet') { p.game = args[0]; p.token = args[1]; }
+    else if (name === 'apiScriptAct') {
+      p.game = args[0]; p.btn = args[1]; p.token = args[2];
+      if (String(p.btn).length > 1500) {
+        postForm(p, function () {
+          if (ok) ok({ view: { data: { ok: true, posted: true } }, session: null });
+        }, ng);
+        return;
+      }
+    }
+    else if (name === 'apiSessionJoin') { p.game = args[0]; p.name = args[1]; p.token = args[2]; p.env = args[3]; }
+    else if (name === 'apiSessionLeave') { p.game = args[0]; p.token = args[1]; }
+    else if (name === 'apiSessionPoll') { p.game = args[0]; p.token = args[1]; p.rev = args[2]; }
+    jsonp(p, ok, ng);
+  }
+  function Runner() { this._ok = null; this._ng = null; }
+  Runner.prototype.withSuccessHandler = function (f) { this._ok = f; return this; };
+  Runner.prototype.withFailureHandler = function (f) { this._ng = f; return this; };
+  Runner.prototype.withUserObject = function () { return this; };
+  ['apiGames', 'apiAnimCode', 'apiMelodyLib', 'apiVisualLib', 'apiScriptGet', 'apiScriptAct',
+   'apiSessionJoin', 'apiSessionLeave', 'apiSessionPoll'].forEach(function (name) {
+    Runner.prototype[name] = function () {
+      var args = Array.prototype.slice.call(arguments);
+      call(name, args, this._ok, this._ng);
+      this._ok = null; this._ng = null;
+    };
+  });
+  window.google = window.google || {};
+  window.google.script = window.google.script || {};
+  window.google.script.run = new Runner();
+})();
+</script>
+
+<meta charset="utf-8">
+<style>
+  body { font-family: sans-serif; margin: 0; padding: 10px; background: #fdf6ec; color: #333; font-size: var(--ui-body, 17px); }
+  h1 { font-size: var(--ui-title, 24px); margin: 4px 0; }
+  #sgmsg { font-size: var(--ui-message, 24px); letter-spacing: 1px; line-height: 1.5; background: #fff; border: 2px solid #d9b36a; border-radius: 8px; padding: 14px 16px; min-height: 44px; margin-bottom: 8px; }
+  #sglines { font-size: var(--ui-lines, 17px); margin: 4px 0 8px; white-space: pre-wrap; }
+  #sgcv { display: none; width: 100%; max-width: 760px; height: auto; margin: 0 auto; image-rendering: pixelated; }
+  #sgplayers { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px auto; max-width: 760px; }
+  .pl { flex: 1 1 44%; background: #fff; border: 2px solid #ccc; border-radius: 8px; padding: 8px 10px; font-size: var(--ui-player, 16px); white-space: pre-wrap; }
+  .pl.turn { border-color: #c0392b; background: #fff7ed; }
+  #sgbtns { text-align: center; margin: 12px 0; }
+  button { font-size: var(--ui-button, 20px); padding: 16px 24px; margin: 4px; border: none; border-radius: 10px; background: #c0392b; color: #fff; min-height: 60px; }
+  button.sub { background: #666; font-size: var(--ui-subbutton, 17px); padding: 10px 16px; min-height: 50px; }
+  button.game { display: block; width: 100%; max-width: 480px; margin: 8px auto; background: #2e6f8e; font-size: var(--ui-game, 19px); text-align: left; }
+  button.game .desc { display: block; font-size: var(--ui-game-desc, 14px); opacity: .85; margin-top: 2px; }
+  button:disabled { opacity: .45; }
+  #animwarn { display: none; background: #fdecea; border: 2px solid #c0392b; color: #a93226; border-radius: 8px; padding: 8px 10px; margin: 0 0 8px; font-size: var(--ui-lines, 17px); }
+  button.rolling { animation: pulse .5s infinite alternate; }
+  @keyframes pulse { from { opacity: 1; } to { opacity: .55; } }
+  #scriptgame { display: none; position: relative; }
+  #sgbar { display: flex; align-items: center; gap: 8px; margin-bottom: 2px; }
+  #sgtop:empty { display: none; }
+  #sgtop button { background: #666; font-size: var(--ui-subbutton, 17px); padding: 10px 16px; min-height: 50px; }
+  #sgpartybtns button { font-size: var(--ui-subbutton, 17px); padding: 10px 16px; min-height: 50px; }
+  #sgpartybtns button.join { background: #2e6f8e; }
+  #sgroll { position: absolute; display: none; z-index: 6; }
+  #sgroll button { padding: 18px 30px; border-radius: 999px; box-shadow: 0 4px 14px rgba(0,0,0,0.35); }
+  #sgplayers.overlay { position: absolute; z-index: 5; background: rgba(255,255,255,0.92); border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.25); padding: 4px; margin: 0; box-sizing: border-box; }
+  #sgplayers.overlay .pl { flex: 1 1 0; min-width: 0; padding: 6px 8px; }
+  #musicbtn { margin-left: auto; font-size: var(--ui-music, 16px); padding: 8px 12px; min-height: 44px; background: #8e44ad; }
+  #sgparty { display: none; background: #eef6ff; border: 2px solid #7aa7d9; border-radius: 8px; padding: 8px 10px; margin: 4px 0 8px; font-size: var(--ui-lines, 17px); line-height: 1.6; }
+  #sgparty button { font-size: var(--ui-subbutton, 17px); padding: 8px 14px; min-height: 44px; margin: 2px; }
+  #sgparty .notice { color: #a93226; font-weight: bold; }
+  #sgjoin { display: none; position: absolute; inset: 0; background: rgba(0,0,0,0.45); z-index: 20; }
+  .sgjoin-card { background: #fff; border-radius: 12px; padding: 18px; margin: 60px auto 0; max-width: 420px; width: calc(100% - 32px); box-sizing: border-box; text-align: center; }
+  .sgjoin-card input { font-size: 20px; padding: 12px; width: 100%; box-sizing: border-box; margin: 8px 0 12px; border: 2px solid #ccc; border-radius: 8px; }
+  #sgjoinmsg { color: #a93226; min-height: 1.2em; }
+</style>
+</head>
+<body>
+  <div id="animwarn"></div>
+  <div id="picker">
+    <h1>🎲 ゲーム開発シート</h1>
+    <p>遊ぶゲームを選んでください</p>
+    <div id="gamelist">読み込み中…</div>
+  </div>
+  <div id="scriptgame">
+    <div id="sgbar"><button class="sub" onclick="backToPicker()">← ゲーム選択</button><div id="sgpartybtns"></div><div id="sgtop"></div><button id="musicbtn" onclick="toggleMusic()">🔊 音楽ON</button></div>
+    <div id="sgparty"></div>
+    <h1 id="sgtitle">🎮 ゲーム</h1>
+    <div id="sgmsg"></div>
+    <div id="sglines"></div>
+    <canvas id="sgcv" width="800" height="720"></canvas>
+    <div id="sgroll"></div>
+    <div id="sgplayers"></div>
+    <div id="sgbtns"></div>
+    <div id="sgjoin">
+      <div class="sgjoin-card" id="sgjoincard"></div>
+    </div>
+  </div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+  var cur = null;
+  // ===== 同時プレイ（セッション）用の端末の控え =====
+  var sgToken = '';
+  try {
+    sgToken = localStorage.getItem('sg_token') || '';
+    if (!sgToken) { sgToken = 'u' + Date.now().toString(36) + Math.floor(Math.random() * 1e9).toString(36); localStorage.setItem('sg_token', sgToken); }
+  } catch (e) { sgToken = 'u' + Date.now(); }
+  var sesInfo = null, lastRev = '', joinDismissed = false, sgInFlight = false;
+  function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+
+  // ===== 画面遷移 =====
+  function loadGames(){
+    google.script.run.withSuccessHandler(function(games){
+      var gl = document.getElementById('gamelist'); gl.innerHTML = '';
+      games.forEach(function(g){
+        var b = document.createElement('button');
+        b.className = 'game';
+        b.innerHTML = esc(g.name) + (g.desc ? '<span class="desc">' + esc(g.desc) + '</span>' : '');
+        b.onclick = function(){ selectGame(g.id); };
+        gl.appendChild(b);
+      });
+      if (!games.length) gl.textContent = 'ゲームが登録されていません（シートの「ゲーム一覧」に追加してください）';
+    }).withFailureHandler(function(e){ document.getElementById('gamelist').textContent = 'エラー：' + (e && e.message ? e.message : e); }).apiGames();
+  }
+  function clearGameScreen_(){
+    sgBoard = null;
+    msgOverlay = false;
+    lastMsg = '';
+    if (typeof window.sgJingleReset === 'function') sgJingleReset();
+    if (typeof stopDiceAnim === 'function') { try { stopDiceAnim(); } catch (e) {} }
+    if (typeof stopWalkAnim === 'function') { try { stopWalkAnim(); } catch (e) {} }
+    if (typeof stopBgLoop === 'function') { try { stopBgLoop(); } catch (e) {} }
+    var t = document.getElementById('sgtitle'); if (t) t.textContent = '🎮 ゲーム';
+    var m = document.getElementById('sgmsg'); if (m) m.textContent = '';
+    var ln = document.getElementById('sglines'); if (ln) ln.textContent = '';
+    var pl = document.getElementById('sgplayers'); if (pl) { pl.innerHTML = ''; pl.style.display = 'none'; }
+    var cv = document.getElementById('sgcv');
+    if (cv) { try { cv.width = 800; cv.height = 720; var cx2 = cv.getContext('2d'); if (cx2) cx2.clearRect(0, 0, 800, 720); } catch (e) {} }
+    if (typeof drawSgBoard === 'function') { try { drawSgBoard(); } catch (e) {} }
+  }
+  function selectGame(id){
+    cur = id;
+    sesInfo = null; lastRev = ''; joinDismissed = false; autoJoinTried = false;
+    sgFirstLoad = true;
+    lastAnimSeq = 0;
+    stopBgm();
+    setMelody(null);
+    clearGameScreen_();
+    document.getElementById('picker').style.display = 'none';
+    document.getElementById('scriptgame').style.display = 'block';
+    sgLoad();
+  }
+  function backToPicker(){
+    if (cur && sesInfo && sesInfo.joined) { try { google.script.run.apiSessionLeave(cur, sgToken); } catch (e) {} }
+    sesInfo = null; lastRev = '';
+    stopBgm();
+    setMelody(null);
+    var jp = document.getElementById('sgjoin'); if (jp) jp.style.display = 'none';
+    var pp = document.getElementById('sgparty'); if (pp) { pp.style.display = 'none'; pp.innerHTML = ''; }
+    var pb2 = document.getElementById('sgpartybtns'); if (pb2) pb2.innerHTML = '';
+    cur = null;
+    clearGameScreen_();
+    if (typeof stopDiceAnim === 'function') stopDiceAnim();
+    if (typeof stopWalkAnim === 'function') stopWalkAnim();
+    stopBgLoop();
+    document.getElementById('sgtop').innerHTML = '';
+    document.getElementById('sgroll').innerHTML = '';
+    document.getElementById('sgroll').style.display = 'none';
+    document.getElementById('sgbtns').innerHTML = '';
+    document.getElementById('scriptgame').style.display = 'none';
+    document.getElementById('picker').style.display = 'block';
+    loadGames();
+  }
+
+  // ===== ゲーム画面（本体コードが返す view を描く） =====
+  var sgBoard = null, lastMsg = '';
+  var walkAnim = null, walkRaf = null;
+  var rafId = null, diceValue = 1, diceLastChange = 0;
+  var sgFirstLoad = true, lastAnimSeq = 0;
+  function sgLoad(){
+    document.getElementById('sgmsg').textContent = '読み込んでいます…';
+    setSgBusy(true);
+    sgInFlight = true;
+    var g = cur;
+    google.script.run.withSuccessHandler(function(res){ if (cur === g) sgRender(res); }).withFailureHandler(sgFail).apiScriptGet(cur, sgToken);
+  }
+  function sgFail(e){
+    sgInFlight = false;
+    setSgBusy(false);
+    document.getElementById('sgmsg').textContent = 'エラー：' + (e && e.message ? e.message : e);
+  }
+  function setSgBusy(b){
+    var bb = document.querySelectorAll('#sgbtns button, #sgtop button, #sgroll button, #sgpartybtns button');
+    for (var k = 0; k < bb.length; k++) { bb[k].disabled = b; if (b) bb[k].className = 'rolling'; else bb[k].className = ''; }
+    if (!b && typeof updateActionVis === 'function') updateActionVis();
+  }
+  var msgOverlay = false;
+  function layoutMsgOverlay(){
+    var msg = document.getElementById('sgmsg');
+    var cv = document.getElementById('sgcv');
+    if (!msg || !cv) return;
+    var useOverlay = msgOverlay && cfgStr('表示_メッセージ重ね', 'ON') !== 'OFF';
+    if (useOverlay && cv.style.display !== 'none') {
+      msg.style.position = 'absolute';
+      msg.style.zIndex = '5';
+      msg.style.background = 'rgba(255,255,255,0.94)';
+      msg.style.boxShadow = '0 2px 8px rgba(0,0,0,0.25)';
+      msg.style.boxSizing = 'border-box';
+      msg.style.marginBottom = '0';
+      var mEdge = cfgNum('メッセージ欄_余白', 8), mSide = cfgNum('メッセージ欄_横余白', 6);
+      if (cfgStr('表示_メッセージ位置', '下') === '下') {
+        var stackB = 0;
+        var plB = document.getElementById('sgplayers');
+        if (plB && plB.className === 'overlay' && cfgStr('プレイヤー欄_位置', '上') === '下') stackB = plB.offsetHeight + cfgNum('プレイヤー欄_余白', 6);
+        msg.style.top = (cv.offsetTop + cv.clientHeight - msg.offsetHeight - mEdge - stackB) + 'px';
+      } else msg.style.top = (cv.offsetTop + mEdge) + 'px';
+      msg.style.left = (cv.offsetLeft + mSide) + 'px';
+      msg.style.width = Math.max(120, cv.clientWidth - mSide * 2) + 'px';
+    } else {
+      msg.style.position = ''; msg.style.top = ''; msg.style.left = ''; msg.style.width = '';
+      msg.style.zIndex = ''; msg.style.background = ''; msg.style.boxShadow = ''; msg.style.boxSizing = ''; msg.style.marginBottom = '';
+    }
+  }
+  function sgTurnIconPos(){
+    var ps = window.sgIconPosProviders || [];
+    for (var i = ps.length - 1; i >= 0; i--) { try { var p = ps[i](); if (p) return p; } catch (e) {} }
+    return null;
+  }
+  function publishBoardInsets(){
+    var ins = { top: 0, bottom: 0 };
+    try {
+      var cv = document.getElementById('sgcv');
+      var pl = document.getElementById('sgplayers');
+      var msg = document.getElementById('sgmsg');
+      if (cv && sgBoard && cv.style.display !== 'none' && cv.clientHeight && cv.height) {
+        var scale = cv.height / cv.clientHeight;
+        var gap = 6, topEdge = 0, botEdge = 0;
+        var els2 = [];
+        if (pl && pl.className === 'overlay' && pl.style.display !== 'none') els2.push(pl);
+        if (msgOverlay && msg && cfgStr('表示_メッセージ重ね', 'ON') !== 'OFF' && msg.style.position === 'absolute') els2.push(msg);
+        els2.forEach(function(el){
+          var topRel = el.offsetTop - cv.offsetTop;
+          var botRel = (cv.offsetTop + cv.clientHeight) - (el.offsetTop + el.offsetHeight);
+          if (topRel <= botRel) topEdge = Math.max(topEdge, el.offsetTop + el.offsetHeight - cv.offsetTop);
+          else botEdge = Math.max(botEdge, cv.offsetTop + cv.clientHeight - el.offsetTop);
+        });
+        if (topEdge > 0) ins.top = Math.round((topEdge + gap) * scale);
+        if (botEdge > 0) ins.bottom = Math.round((botEdge + gap) * scale);
+        ins.top += Math.max(0, cfgNum('盤面_余白_追加上', 0));
+        ins.bottom += Math.max(0, cfgNum('盤面_余白_追加下', 0));
+      }
+    } catch (e) {}
+    window.sgBoardInsets = ins;
+  }
+  function layoutInfoOverlay(){
+    var ln = document.getElementById('sglines');
+    var cv = document.getElementById('sgcv');
+    if (!ln || !cv) return;
+    var pl = document.getElementById('sgplayers');
+    var msg = document.getElementById('sgmsg');
+    var use = !!(sgBoard && (sgBoard.mode === 'map' || sgBoard.mode === 'farm') && cv.style.display !== 'none' && cfgStr('情報_重ね', 'ON') !== 'OFF' && ln.style.display !== 'none' && (ln.textContent || '') !== '');
+    if (!use) {
+      ln.style.position = ''; ln.style.top = ''; ln.style.left = ''; ln.style.zIndex = ''; ln.style.background = ''; ln.style.boxShadow = ''; ln.style.borderRadius = ''; ln.style.padding = ''; ln.style.margin = ''; ln.style.maxWidth = '';
+      return;
+    }
+    var e = cfgNum('情報_余白', 8), side = cfgNum('情報_横余白', 6);
+    ln.style.position = 'absolute';
+    ln.style.zIndex = '6';
+    ln.style.background = 'rgba(255,255,255,0.92)';
+    ln.style.boxShadow = '0 2px 8px rgba(0,0,0,0.25)';
+    ln.style.borderRadius = '10px';
+    ln.style.padding = '6px 12px';
+    ln.style.margin = '0';
+    ln.style.left = (cv.offsetLeft + side) + 'px';
+    ln.style.maxWidth = Math.max(120, cv.clientWidth - side * 2) + 'px';
+    if (cfgStr('情報_位置', '上') === '下') {
+      var sb = 0;
+      if (msgOverlay && cfgStr('表示_メッセージ重ね', 'ON') !== 'OFF' && cfgStr('表示_メッセージ位置', '下') === '下' && msg) sb += msg.offsetHeight + cfgNum('メッセージ欄_余白', 8);
+      if (pl && pl.className === 'overlay' && cfgStr('プレイヤー欄_位置', '上') === '下') sb += pl.offsetHeight + cfgNum('プレイヤー欄_余白', 6);
+      ln.style.top = (cv.offsetTop + cv.clientHeight - ln.offsetHeight - e - sb) + 'px';
+    } else {
+      var st = 0;
+      if (pl && pl.className === 'overlay' && pl.style.display !== 'none' && cfgStr('プレイヤー欄_位置', '上') !== '下') st += pl.offsetHeight + cfgNum('プレイヤー欄_余白', 6);
+      if (msgOverlay && cfgStr('表示_メッセージ重ね', 'ON') !== 'OFF' && cfgStr('表示_メッセージ位置', '下') !== '下' && msg) st += msg.offsetHeight + cfgNum('メッセージ欄_余白', 8);
+      ln.style.top = (cv.offsetTop + e + st) + 'px';
+    }
+  }
+  function layoutOverlays(){
+    layoutMsgOverlay();
+    var cv = document.getElementById('sgcv');
+    var pl = document.getElementById('sgplayers');
+    var roll = document.getElementById('sgroll');
+    var boardShown = !!(cv && sgBoard && cv.style.display !== 'none');
+    if (pl) {
+      if (boardShown && cfgStr('表示_プレイヤー', 'ON') !== 'OFF') {
+        pl.className = 'overlay';
+        var pEdge = cfgNum('プレイヤー欄_余白', 6), pSide = cfgNum('プレイヤー欄_横余白', 6);
+        if (cfgStr('プレイヤー欄_位置', '上') === '下') pl.style.top = (cv.offsetTop + cv.clientHeight - pl.offsetHeight - pEdge) + 'px';
+        else pl.style.top = (cv.offsetTop + pEdge) + 'px';
+        pl.style.left = (cv.offsetLeft + pSide) + 'px';
+        pl.style.width = Math.max(120, Math.min(cfgNum('プレイヤー欄_幅', 320), cv.clientWidth - pSide * 2)) + 'px';
+      } else {
+        pl.className = '';
+        pl.style.top = ''; pl.style.left = ''; pl.style.width = '';
+      }
+    }
+    layoutInfoOverlay();
+    if (roll) {
+      var pos = cfgStr('ボタン_位置', 'プレーヤー下部');
+      var iconPos = (pos === 'アイコン下' && boardShown && roll.children.length) ? sgTurnIconPos() : null;
+      if (iconPos && cv.width) {
+        roll.style.position = 'absolute';
+        roll.style.textAlign = '';
+        roll.style.margin = '';
+        var isx = cv.clientWidth / cv.width, isy = cv.clientHeight / cv.height;
+        var ileft = cv.offsetLeft + iconPos.x * isx - roll.offsetWidth / 2;
+        ileft = Math.max(cv.offsetLeft + 4, Math.min(cv.offsetLeft + cv.clientWidth - roll.offsetWidth - 4, ileft));
+        var itop = cv.offsetTop + iconPos.y * isy + 10;
+        itop = Math.max(cv.offsetTop + 4, Math.min(cv.offsetTop + cv.clientHeight - roll.offsetHeight - 4, itop));
+        roll.style.top = Math.round(itop) + 'px';
+        roll.style.left = Math.round(ileft) + 'px';
+      } else if (roll.children.length && pos === 'プレーヤー下部') {
+        roll.style.position = 'static';
+        roll.style.top = ''; roll.style.left = '';
+        roll.style.textAlign = 'center';
+        roll.style.margin = '8px 0';
+      } else if (boardShown && roll.children.length) {
+        roll.style.position = 'absolute';
+        roll.style.textAlign = '';
+        roll.style.margin = '';
+        if (pos === '中央') {
+          roll.style.top = (cv.offsetTop + Math.round(cv.clientHeight / 2) - Math.round(roll.offsetHeight / 2)) + 'px';
+        } else if (pos === '右下') {
+          var msgEl = document.getElementById('sgmsg');
+          var msgH = (msgOverlay && cfgStr('表示_メッセージ重ね', 'ON') !== 'OFF' && msgEl) ? msgEl.offsetHeight + 8 : 0;
+          roll.style.top = (cv.offsetTop + cv.clientHeight - roll.offsetHeight - msgH - 10) + 'px';
+        } else {
+          var plH = 0;
+          if (pl && cfgStr('表示_プレイヤー', 'ON') !== 'OFF' && pl.style.display !== 'none') plH = pl.offsetHeight + 6;
+          roll.style.top = (cv.offsetTop + 6 + plH + 6) + 'px';
+        }
+        if (pos === 'アイコン下') { /* アイコン位置が取れないときはプレーヤー下にフォールバック */ }
+        roll.style.left = (pos === '右下')
+          ? (cv.offsetLeft + cv.clientWidth - roll.offsetWidth - 10) + 'px'
+          : (cv.offsetLeft + Math.round(cv.clientWidth / 2) - Math.round(roll.offsetWidth / 2)) + 'px';
+      } else {
+        roll.style.position = ''; roll.style.top = ''; roll.style.left = '';
+        roll.style.textAlign = ''; roll.style.margin = '';
+      }
+    }
+  }
+  window.addEventListener('resize', layoutOverlays);
+  function updateActionVis(){
+    var roll = document.getElementById('sgroll');
+    if (!roll) return;
+    if (cfgStr('ボタン_アニメ中非表示', 'ON') === 'OFF') { roll.style.visibility = ''; return; }
+    var busy = !!walkAnim
+      || (typeof mapDiceState !== 'undefined' && !!mapDiceState)
+      || (typeof diceAnim !== 'undefined' && !!diceAnim);
+    roll.style.visibility = (roll.children.length && busy) ? 'hidden' : '';
+    if (busy && typeof setTimeout === 'function') setTimeout(updateActionVis, 350);
+  }
+  function placeButtons(buttons){
+    var top = document.getElementById('sgtop'); top.innerHTML = '';
+    var roll = document.getElementById('sgroll'); roll.innerHTML = '';
+    var bb = document.getElementById('sgbtns'); bb.innerHTML = '';
+    var topIds = cfgList('ボタン_上部', 'init,reset');
+    var actIds = cfgList('ボタン_重ね', 'roll,buy,skip');
+    (buttons || []).forEach(function(b){
+      var btn = document.createElement('button');
+      btn.textContent = b.label;
+      btn.onclick = function(){ sgAct(b.id); };
+      if (topIds.indexOf(b.id) >= 0) top.appendChild(btn);
+      else if (actIds.indexOf(b.id) >= 0) roll.appendChild(btn);
+      else bb.appendChild(btn);
+    });
+    roll.style.display = roll.children.length ? 'block' : 'none';
+    layoutOverlays();
+    publishBoardInsets();
+    updateActionVis();
+  }
+  // 参加ポップアップの文言はゲームごとにシート側（本体→view.join）から渡される。ここでは差し替えるだけ
+  function applyJoinTexts_(j){
+    if (!j) return;
+    var t;
+    t = document.getElementById('sgjointitle'); if (t && j.title) t.innerHTML = '<b>' + esc(j.title) + '</b>';
+    t = document.getElementById('sgjoindesc'); if (t && j.desc) t.textContent = j.desc;
+    t = document.getElementById('sgjoinbtn'); if (t && j.join) t.textContent = j.join;
+    t = document.getElementById('sgwatchbtn'); if (t && j.watch) t.textContent = j.watch;
+  }
+  // 端末トークンが変わっても、保存済みの名前と同じ参加者がいれば自動で参加し直す（この仕組みでは名前が本人確認の代わり）
+  var autoJoinTried = false;
+  function maybeAutoJoin_(){
+    if (!cur || autoJoinTried || joinDismissed) return;
+    if (!sesInfo || !sesInfo.multi || sesInfo.joined || sesInfo.empty) return;
+    var nm = ''; try { nm = localStorage.getItem('sg_name') || ''; } catch (e) {}
+    if (!nm) return;
+    var hit = (sesInfo.players || []).some(function (p) { return p && p.name === nm; });
+    if (!hit) return;
+    autoJoinTried = true;
+    try {
+      google.script.run.withSuccessHandler(function(){ sgLoad(); }).withFailureHandler(function(){}).apiSessionJoin(cur, nm, sgToken, sgEnv_());
+    } catch (e) {}
+  }
+  function sgRender(res){
+    sgInFlight = false;
+    if (!cur || !res) return;
+    if (res.session) { sesInfo = res.session; if (res.session.rev) lastRev = res.session.rev; updateParty(); }
+    maybeAutoJoin_();
+    applyJoinTexts_(res.view && res.view.join);
+    if (res.melody) { setMelody(res.melody); startBgm(); }
+    document.getElementById('sgtitle').textContent = '🎮 ' + res.gameName;
+    var v = res.view || {};
+    document.getElementById('sgmsg').textContent = v.message || '';
+    if (v.message && v.message !== lastMsg) { lastMsg = v.message; jingle(v.message); }
+    document.getElementById('sglines').textContent = (v.lines || []).filter(function(x){ return x; }).join('\n');
+    var cv = document.getElementById('sgcv');
+    if (v.board && v.board.cells) { sgBoard = v.board; cv.style.display = 'block'; }
+    else { sgBoard = null; cv.style.display = 'none'; if (typeof stopWalkAnim === 'function') stopWalkAnim(); }
+    if (sgBoard) startBgLoop(); else stopBgLoop();
+    msgOverlay = !!sgBoard;
+    layoutOverlays();
+    // 移動アニメの判定：初回表示では再生せず、act の応答で新しい seq のときだけ再生
+    var anim = null;
+    if (sgBoard && v.anim && v.anim.path && v.anim.path.length) {
+      if (sgFirstLoad) { lastAnimSeq = v.anim.seq; }
+      else if (v.anim.seq !== lastAnimSeq) { lastAnimSeq = v.anim.seq; anim = v.anim; }
+    }
+    sgFirstLoad = false;
+    if (anim && typeof startWalkAnim === 'function') startWalkAnim(anim);
+    if (typeof stopDiceAnim === 'function') stopDiceAnim();
+    setSgBusy(false);
+    var pl = document.getElementById('sgplayers'); pl.innerHTML = '';
+    (v.players || []).forEach(function(p){
+      var d = document.createElement('div');
+      d.className = 'pl' + (p.turn ? ' turn' : '');
+      d.innerHTML = p.piece + ' <b>' + esc(p.name) + '</b>\n' + esc(p.info || '');
+      pl.appendChild(d);
+    });
+    pl.style.display = (v.players && v.players.length && cfgStr('表示_プレイヤー', 'ON') !== 'OFF') ? '' : 'none';
+    placeButtons(v.buttons);
+    if (walkAnim) setSgBusy(true);
+    if (anim && typeof runWalkLoop === 'function') runWalkLoop();
+  }
+  function sgAct(id){
+    sgInFlight = true;
+    setSgBusy(true);
+    document.getElementById('sgmsg').textContent = '処理しています…';
+    if (id === 'roll' && sgBoard && typeof startDiceAnim === 'function') startDiceAnim();
+    updateActionVis();
+    var g = cur;
+    google.script.run.withSuccessHandler(function(res){ if (cur === g) sgRender(res); }).withFailureHandler(sgFail).apiScriptAct(cur, id, sgToken);
+  }
+
+  // ===== 同時プレイ（セッション）：参加・表示・自動更新 =====
+  function updateParty(){
+    var box = document.getElementById('sgparty');
+    if (!box) return;
+    var jp = document.getElementById('sgjoin');
+    var pb = document.getElementById('sgpartybtns');
+    if (!sesInfo || !sesInfo.multi) { box.style.display = 'none'; if (jp) jp.style.display = 'none'; if (pb) pb.innerHTML = ''; return; }
+    if (pb) {
+      pb.innerHTML = '';
+      var pbtn = document.createElement('button');
+      if (sesInfo.joined) { pbtn.className = 'sub'; pbtn.textContent = '退出する'; pbtn.onclick = function(){ sgLeave(); }; }
+      else { pbtn.className = 'join'; pbtn.textContent = '参加する'; pbtn.onclick = function(){ sgShowJoin(); }; }
+      pb.appendChild(pbtn);
+    }
+    box.style.display = 'block';
+    if (jp) jp.style.display = (sesInfo.joined || joinDismissed) ? 'none' : 'block';
+    // バナーの文言はシート側（セッション管理）が ses.lines として組み立てて渡す。ここでは並べて表示するだけ
+    var html = (sesInfo.lines || []).map(function (s) { return esc(s); }).join('<br>');
+    if (sesInfo.notice) html += (html ? '<br>' : '') + '<span class="notice">' + esc(sesInfo.notice) + '</span>';
+    box.innerHTML = html;
+  }
+  function sgShowJoin(){
+    joinDismissed = false;
+    var inp = document.getElementById('sgjoinname');
+    if (inp) { try { inp.value = localStorage.getItem('sg_name') || ''; } catch (e) {} }
+    document.getElementById('sgjoinmsg').textContent = '';
+    document.getElementById('sgjoin').style.display = 'block';
+  }
+  function sgEnv_(){
+    var ua = (typeof navigator !== 'undefined' && navigator.userAgent) || '';
+    var browser = 'その他';
+    if (/CriOS\//.test(ua)) browser = 'Chrome';
+    else if (/FxiOS\//.test(ua)) browser = 'Firefox';
+    else if (/EdgiOS\/|Edg\//.test(ua)) browser = 'Edge';
+    else if (/Chrome\//.test(ua)) browser = 'Chrome';
+    else if (/Firefox\//.test(ua)) browser = 'Firefox';
+    else if (/Safari\//.test(ua)) browser = 'Safari';
+    var os = 'その他';
+    if (/iPhone|iPad|iPod/.test(ua)) os = 'iOS';
+    else if (/Android/.test(ua)) os = 'Android';
+    else if (/Windows/.test(ua)) os = 'Windows';
+    else if (/Macintosh|Mac OS/.test(ua)) os = 'macOS';
+    else if (/Linux/.test(ua)) os = 'Linux';
+    var device = 'PC';
+    if (/iPad/.test(ua)) device = 'iPad';
+    else if (/iPhone|iPod/.test(ua)) device = 'iPhone';
+    else if (/Android/.test(ua) && /Mobile/.test(ua)) device = 'Androidスマホ';
+    else if (/Android/.test(ua)) device = 'Androidタブレット';
+    else if (/Mobile/.test(ua)) device = 'スマホ';
+    return browser + '|' + os + '|' + device;
+  }
+  function sgJoin(){
+    var inp = document.getElementById('sgjoinname');
+    var name = inp ? inp.value.replace(/^\s+|\s+$/g, '') : '';
+    document.getElementById('sgjoinmsg').textContent = '参加しています…';
+    google.script.run.withSuccessHandler(function(r){
+      if (r && r.ok) {
+        try { if (name) localStorage.setItem('sg_name', name); } catch (e) {}
+        joinDismissed = true;
+        document.getElementById('sgjoin').style.display = 'none';
+        sgLoad();
+      } else {
+        document.getElementById('sgjoinmsg').textContent = (r && r.msg) || '参加できませんでした';
+      }
+    }).withFailureHandler(function(e){
+      document.getElementById('sgjoinmsg').textContent = 'エラー：' + (e && e.message ? e.message : e);
+    }).apiSessionJoin(cur, name, sgToken, sgEnv_());
+  }
+  function sgWatch(){
+    joinDismissed = true;
+    document.getElementById('sgjoin').style.display = 'none';
+    updateParty();
+  }
+  function sgLeave(){
+    google.script.run.withSuccessHandler(function(){ sgLoad(); }).withFailureHandler(function(){ sgLoad(); }).apiSessionLeave(cur, sgToken);
+  }
+  function sgPoll(){
+    if (!cur || !sesInfo || !sesInfo.multi || sgInFlight || walkAnim || document.hidden) return;
+    var g = cur;
+    google.script.run.withSuccessHandler(function(res){
+      if (res && res.changed && cur === g) sgRender(res);
+    }).withFailureHandler(function(){}).apiSessionPoll(cur, sgToken, lastRev);
+  }
+  setInterval(sgPoll, 3500);
+
+  // ===== 見た目ライブラリ（ドット絵・アニメ設定シートから読み込み） =====
+  var VIS = { sprites: {}, cfg: {}, bg: null, map: null, raw: null };
+  function cfgNum(key, def){ var v = VIS.cfg[key]; if (v === '' || v == null) return def; var n = Number(v); return isNaN(n) ? def : n; }
+  function cfgStr(key, def){ var v = VIS.cfg[key]; return (v === '' || v == null) ? def : String(v); }
+  function cfgList(key, def){ return cfgStr(key, def).split(/[,、\s]+/).filter(function(x){ return x; }); }
+  function applyFontSettings(){
+    function loadFont(fam){
+      if (!fam) return;
+      var lid = 'gfont-' + fam.replace(/\s+/g, '-');
+      if (document.getElementById(lid)) return;
+      try {
+        var link = document.createElement('link');
+        link.id = lid; link.rel = 'stylesheet';
+        link.href = 'https://fonts.googleapis.com/css2?family=' + fam.replace(/\s+/g, '+') + '&display=swap';
+        (document.head || document.body).appendChild(link);
+      } catch (e) {}
+    }
+    function famCss(key){
+      var f = cfgStr(key, '').replace(/'/g, '');
+      return f ? "'" + f + "', sans-serif" : '';
+    }
+    ['フォント_メッセージ', 'フォント_プレーヤー', 'フォント_ボタン'].forEach(function(k){ loadFont(cfgStr(k, '').replace(/'/g, '')); });
+    var msg = document.getElementById('sgmsg');
+    if (msg) msg.style.fontFamily = famCss('フォント_メッセージ');
+    var pl = document.getElementById('sgplayers');
+    if (pl) pl.style.fontFamily = famCss('フォント_プレーヤー');
+    var btnCss = famCss('フォント_ボタン');
+    var st = document.getElementById('sgfontstyle');
+    if (btnCss) {
+      if (!st) {
+        st = document.createElement('style');
+        st.id = 'sgfontstyle';
+        (document.head || document.body).appendChild(st);
+      }
+      st.textContent = "button { font-family: " + btnCss + "; }";
+    } else if (st) {
+      st.textContent = '';
+    }
+  }
+  function applyUiTextSizes(){
+    var root = document.documentElement;
+    if (!root || !root.style || !root.style.setProperty) return;
+    var defs = [
+      ['--ui-body', 'UI_本文', 17], ['--ui-title', 'UI_タイトル', 24],
+      ['--ui-message', 'UI_メッセージ', 18], ['--ui-lines', 'UI_情報行', 17],
+      ['--ui-player', 'UI_プレイヤー', 16], ['--ui-button', 'UI_ボタン', 20],
+      ['--ui-subbutton', 'UI_小ボタン', 17], ['--ui-game', 'UI_ゲーム名', 19],
+      ['--ui-game-desc', 'UI_ゲーム説明', 14], ['--ui-music', 'UI_音楽ボタン', 16]
+    ];
+    defs.forEach(function(d){
+      var n = cfgNum(d[1], d[2]);
+      n = Math.max(10, Math.min(48, n));
+      root.style.setProperty(d[0], n + 'px');
+    });
+  }
+  function applyDisplaySettings(){
+    var lines = document.getElementById('sglines');
+    if (lines) lines.style.display = cfgStr('表示_情報行', 'ON') === 'OFF' ? 'none' : '';
+    var pl = document.getElementById('sgplayers');
+    if (pl) pl.style.display = cfgStr('表示_プレイヤー', 'ON') === 'OFF' ? 'none' : '';
+    if (typeof layoutOverlays === 'function') layoutOverlays();
+  }
+  // ドット絵の組み立て：どの種別をキャラクター・背景・地図として使うかは
+  // 設定タブの「描画_キャラ種別」「描画_背景種別」「描画_地図種別」で決まる
+  // ドット絵の組み立て（スプライト・背景・地図）は、シート側の「ドット絵描画」ブロックの sgBuildVisual が行う
+  function buildVisual(v){
+    VIS.cfg = v.cfg || {};
+    VIS.raw = v;
+    applyUiTextSizes();
+    applyFontSettings();
+    applyDisplaySettings();
+    if (typeof window.sgBuildVisual === 'function') sgBuildVisual(v, VIS);
+    if (sgBoard && !walkAnim && typeof drawSgBoard === 'function') drawSgBoard();
+  }
+
+  // ===== アニメコード（シート「コード」のアニメ行を読み込んで使う。予備コードは廃止） =====
+  // 読み込み順と必須関数はシート側（コードタブの「読込順」「必須関数」列）で管理し、apiAnimCode が一緒に返す。
+  function showAnimWarning(failed){
+    var w = document.getElementById('animwarn');
+    if (!w) return;
+    if (failed && failed.length) {
+      w.style.display = 'block';
+      w.textContent = '⚠ アニメコードの「' + failed.join('」「') + '」を読み込めませんでした。シート「アニメコード」の内容を確認してください（そのアニメーションは動きません）。';
+    } else {
+      w.style.display = 'none';
+    }
+  }
+  function installAnimCode(lib){
+    lib = lib || {};
+    var blocks = lib.blocks || {};
+    var order = lib.order || Object.keys(blocks);
+    var required = lib.required || {};
+    var failed = [];
+    order.forEach(function(name){
+      var code = blocks[name];
+      if (!code) { failed.push(name); return; }
+      try {
+        var sc = document.createElement('script');
+        sc.textContent = code;
+        document.body.appendChild(sc);
+      } catch (e) {}
+      var fn = required[name];
+      if (fn && typeof window[fn] !== 'function') failed.push(name);
+    });
+    showAnimWarning(failed);
+    if (VIS.raw && typeof window.sgBuildVisual === 'function') buildVisual(VIS.raw);
+    if (typeof window.sgBuildJoinCard === 'function') sgBuildJoinCard();
+    if (sgBoard && !walkAnim && typeof drawSgBoard === 'function') drawSgBoard();
+  }
+
+  // ===== 背景アニメーションのループ（盤面表示中だけ低頻度で描き直す） =====
+  var bgTimer = null;
+  function startBgLoop(){ if (bgTimer) return; bgTimer = setInterval(bgTick, cfgNum('背景_間隔', 140)); }
+  function stopBgLoop(){ if (bgTimer) { clearInterval(bgTimer); bgTimer = null; } }
+  function bgTick(){
+    if (sgBoard && typeof publishBoardInsets === 'function') publishBoardInsets();
+    if (sgBoard && !rafId && !walkRaf && typeof drawSgBoard === 'function') drawSgBoard();
+    if (sgBoard && cfgStr('ボタン_位置', '') === 'アイコン下') layoutOverlays();
+  }
+
+  // ===== Web Audio API: BGM と効果音（メロディはシートから読み込み） =====
+  var AC = null, musicOn = true, bgmTimer = null, step = 0, nextT = 0;
+  var LEAD = [72,76,79,81, 79,76,74,76, 72,76,79,81, 79,76,74,72, 74,76,79,76, 74,72,74,76, 67,72,76,74, 72,0,0,0];
+  var BASS = [48,0,55,0, 53,0,60,0, 55,0,62,0, 48,0,55,0, 50,0,57,0, 53,0,60,0, 55,0,62,0, 48,0,55,0];
+  var LIB = {}, MEL = null;
+  function ac(){ if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){} } if (AC && AC.state === 'suspended') AC.resume(); return AC; }
+  function mf(m){ return 440 * Math.pow(2, (m - 69) / 12); }
+  function tone(midi, t, dur, type, vol){
+    var a = ac(); if (!a || !midi) return;
+    var o = a.createOscillator(), g = a.createGain();
+    o.type = type; o.frequency.value = mf(midi);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    o.connect(g); g.connect(a.destination);
+    o.start(t); o.stop(t + dur + 0.02);
+  }
+  // メロディはMusicXMLで管理する（パート1=リード、パート2=ベース）。
+  // 時刻は8分音符単位（ステップ）に換算して既存のスケジューラで鳴らす。
+  var XMLCACHE = {};
+  function parseMusicXml_(xml){
+    if (!xml) return null;
+    if (XMLCACHE[xml]) return XMLCACHE[xml];
+    var base = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+    var bpm = 132;
+    var tm = /<sound[^>]*tempo="([\d.]+)"/.exec(xml) || /<per-minute>([\d.]+)<\/per-minute>/.exec(xml);
+    if (tm) bpm = Number(tm[1]) || 132;
+    var parts = [];
+    var pre = /<part\s[^>]*>([\s\S]*?)<\/part>/g, pm;
+    while ((pm = pre.exec(xml)) && parts.length < 2) {
+      var body = pm[1], events = [], div = 1, pos = 0, lastStart = 0;
+      var re = /<divisions>(\d+)<\/divisions>|<note>([\s\S]*?)<\/note>/g, nm;
+      while ((nm = re.exec(body))) {
+        if (nm[1]) { div = Number(nm[1]) || 1; continue; }
+        var nb = nm[2];
+        var dm = /<duration>(\d+)<\/duration>/.exec(nb);
+        var dq = dm ? Number(dm[1]) / div : 0;
+        var isChord = /<chord\s*\/>/.test(nb);
+        var start = isChord ? lastStart : pos;
+        if (!/<rest\s*\/>/.test(nb)) {
+          var sm = /<step>([A-G])<\/step>/.exec(nb), om = /<octave>(\d+)<\/octave>/.exec(nb);
+          if (sm && om) {
+            var am = /<alter>(-?[\d.]+)<\/alter>/.exec(nb);
+            var midi = 12 * (Number(om[1]) + 1) + base[sm[1]] + (am ? Number(am[1]) : 0);
+            events.push({ m: midi, t: Math.round(start * 2), d: Math.max(1, Math.round(dq * 2)) });
+          }
+        }
+        if (!isChord) { lastStart = pos; pos += dq; }
+      }
+      parts.push({ events: events, steps: Math.max(1, Math.round(pos * 2)) });
+    }
+    if (!parts.length) return null;
+    var len = 1;
+    parts.forEach(function(p){ len = Math.max(len, p.steps); });
+    var out = { bpm: bpm, len: len, parts: parts };
+    XMLCACHE[xml] = out;
+    return out;
+  }
+  function melArrays_(parsed){
+    var lh = [], ll = [], bh = [], bl = [], i;
+    for (i = 0; i < parsed.len; i++) { lh.push(0); ll.push(1); bh.push(0); bl.push(1); }
+    function fill(part, hit, ln){
+      if (!part) return;
+      part.events.forEach(function(ev){ if (ev.t < parsed.len) { hit[ev.t] = ev.m; ln[ev.t] = ev.d; } });
+    }
+    fill(parsed.parts[0], lh, ll);
+    fill(parsed.parts[1], bh, bl);
+    return { bpm: parsed.bpm, len: parsed.len, lh: lh, ll: ll, bh: bh, bl: bl };
+  }
+  function setMelody(m){
+    if (!m || !m.xml) { MEL = null; return; }
+    var p = parseMusicXml_(m.xml);
+    MEL = p ? melArrays_(p) : null;
+  }
+  function playOnce(name){
+    var m = LIB[name]; if (!m || !m.xml) return false;
+    var a = ac(); if (!a || !musicOn) return true;
+    var p = parseMusicXml_(m.xml); if (!p) return false;
+    var stepDur = 60 / p.bpm / 2;
+    p.parts[0].events.forEach(function(ev){ tone(ev.m, a.currentTime + ev.t * stepDur, ev.d * stepDur * 1.4, 'triangle', 0.14); });
+    return true;
+  }
+  function schedule(){
+    var a = ac(); if (!a) return;
+    var bpm = MEL ? MEL.bpm : 132;
+    var stepDur = 60 / bpm / 2;
+    var len = MEL ? MEL.len : 32;
+    while (nextT < a.currentTime + 0.25) {
+      var i = step % len;
+      if (MEL) {
+        if (MEL.lh[i]) tone(MEL.lh[i], nextT, MEL.ll[i] * stepDur * 0.9, 'triangle', 0.12);
+        if (MEL.bh[i]) tone(MEL.bh[i], nextT, MEL.bl[i] * stepDur * 1.3, 'sine', 0.16);
+      } else {
+        tone(LEAD[i], nextT, 0.22, 'triangle', 0.12);
+        tone(BASS[i], nextT, 0.3, 'sine', 0.16);
+      }
+      nextT += stepDur; step++;
+    }
+  }
+  function startBgm(){ if (!musicOn || bgmTimer) return; var a = ac(); if (!a) return; nextT = a.currentTime + 0.06; step = 0; bgmTimer = setInterval(schedule, 100); }
+  function stopBgm(){ if (bgmTimer) { clearInterval(bgmTimer); bgmTimer = null; } }
+  function toggleMusic(){
+    musicOn = !musicOn;
+    document.getElementById('musicbtn').textContent = musicOn ? '🔊 音楽ON' : '🔇 音楽OFF';
+    if (musicOn) { if (cur) startBgm(); } else stopBgm();
+  }
+  function sfxCoin(){ var a = ac(); if (!a || !musicOn) return; tone(88, a.currentTime, 0.09, 'square', 0.1); tone(93, a.currentTime + 0.09, 0.25, 'square', 0.1); }
+  function sfxBad(){ var a = ac(); if (!a || !musicOn) return; tone(64, a.currentTime, 0.15, 'sawtooth', 0.07); tone(60, a.currentTime + 0.15, 0.3, 'sawtooth', 0.07); }
+  function sfxGoal(){ var a = ac(); if (!a || !musicOn) return; [72,76,79,84].forEach(function(m, i){ tone(m, a.currentTime + i * 0.1, 0.25, 'triangle', 0.14); }); }
+  function sfxWin(){ var a = ac(); if (!a || !musicOn) return; [72,76,79,84,79,84,88].forEach(function(m, i){ tone(m, a.currentTime + i * 0.13, 0.3, 'triangle', 0.14); }); }
+  // 効果音のルール（どのメッセージでどの音を鳴らすか）は、シート側の「ジングル」ブロックが持ちます
+  function jingle(msg){
+    if (typeof window.sgJingle === 'function') sgJingle(msg);
+  }
+
+  // ===== 初期化 =====
+  google.script.run.withSuccessHandler(function(lib){ LIB = lib || {}; }).apiMelodyLib();
+  var visDone = false, animDone = false, gamesStarted = false;
+  function maybeStartGames(){ if (visDone && animDone && !gamesStarted) { gamesStarted = true; loadGames(); } }
+  google.script.run.withSuccessHandler(function(v){ if (v) buildVisual(v); visDone = true; maybeStartGames(); }).withFailureHandler(function(){ visDone = true; maybeStartGames(); }).apiVisualLib();
+  google.script.run.withSuccessHandler(function(lib){ installAnimCode(lib || {}); animDone = true; maybeStartGames(); }).withFailureHandler(function(){ showAnimWarning(['アニメコード全体']); animDone = true; maybeStartGames(); }).apiAnimCode();
+</script>
+</body>
+</html>
