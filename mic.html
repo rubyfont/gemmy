@@ -203,7 +203,7 @@
           }, 12000);
           apiGet('mb_clap\n' + PERF + '\n' + n, function (d) {
             if (sendDone) return; sendDone = true; clearTimeout(sendTo);
-            if (d && d.ok) clapMsg.textContent = '👏 拍手 ' + n + ' 回を集計に加えました（合計 ' + d.claps + '）。ゲームに戻って確認できます。';
+            if (d && d.ok) clapMsg.textContent = '👏 拍手 ' + n + ' 回を集計に加えています（合計 ' + d.claps + '）。ゲームに戻って確認できます。';
             else clapMsg.textContent = '送信できませんでした（' + (d && d.error ? d.error : '通信エラー') + '）。もう一度お試しください。';
             startBtn.disabled = false;
           });
