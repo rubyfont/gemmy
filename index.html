@@ -90,8 +90,7 @@ window.SG_PAGES_HOST = true;
 <style>
   body { font-family: sans-serif; margin: 0; padding: 10px; background: #fdf6ec; color: #333; font-size: var(--ui-body, 17px); }
   h1 { font-size: var(--ui-title, 24px); margin: 4px 0; }
-  #sgmsg { font-size: var(--ui-message, 24px); letter-spacing: 1px; line-height: 1.5; background: #fff; border: 2px solid #d9b36a; border-radius: 8px; padding: 14px 16px; min-height: 44px; margin-bottom: 8px; }
-  #sglines { font-size: var(--ui-lines, 17px); margin: 4px 0 8px; white-space: pre-wrap; }
+  #sgmsg { font-size: var(--ui-message, 24px); letter-spacing: 1px; line-height: 1.5; background: #fff; border: 2px solid #d9b36a; border-radius: 8px; padding: 14px 16px; min-height: 44px; margin-bottom: 8px; white-space: pre-wrap; }
   #sgcv { display: none; width: 100%; max-width: 760px; height: auto; margin: 0 auto; image-rendering: pixelated; }
   #sgplayers { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px auto; max-width: 760px; }
   .pl { flex: 1 1 44%; background: #fff; border: 2px solid #ccc; border-radius: 8px; padding: 8px 10px; font-size: var(--ui-player, 16px); white-space: pre-wrap; }
@@ -137,7 +136,6 @@ window.SG_PAGES_HOST = true;
     <div id="sgparty"></div>
     <h1 id="sgtitle">🎮 ゲーム</h1>
     <div id="sgmsg"></div>
-    <div id="sglines"></div>
     <canvas id="sgcv" width="800" height="720"></canvas>
     <div id="sgroll"></div>
     <div id="sgplayers"></div>
@@ -182,7 +180,6 @@ window.SG_PAGES_HOST = true;
     if (typeof stopBgLoop === 'function') { try { stopBgLoop(); } catch (e) {} }
     var t = document.getElementById('sgtitle'); if (t) t.textContent = '🎮 ゲーム';
     var m = document.getElementById('sgmsg'); if (m) m.textContent = '';
-    var ln = document.getElementById('sglines'); if (ln) ln.textContent = '';
     var pl = document.getElementById('sgplayers'); if (pl) { pl.innerHTML = ''; pl.style.display = 'none'; }
     var cv = document.getElementById('sgcv');
     if (cv) { try { cv.width = 800; cv.height = 720; var cx2 = cv.getContext('2d'); if (cx2) cx2.clearRect(0, 0, 800, 720); } catch (e) {} }
@@ -302,39 +299,6 @@ window.SG_PAGES_HOST = true;
     } catch (e) {}
     window.sgBoardInsets = ins;
   }
-  function layoutInfoOverlay(){
-    var ln = document.getElementById('sglines');
-    var cv = document.getElementById('sgcv');
-    if (!ln || !cv) return;
-    var pl = document.getElementById('sgplayers');
-    var msg = document.getElementById('sgmsg');
-    var use = !!(sgBoard && (sgBoard.mode === 'map' || sgBoard.mode === 'farm') && cv.style.display !== 'none' && cfgStr('情報_重ね', 'ON') !== 'OFF' && ln.style.display !== 'none' && (ln.textContent || '') !== '');
-    if (!use) {
-      ln.style.position = ''; ln.style.top = ''; ln.style.left = ''; ln.style.zIndex = ''; ln.style.background = ''; ln.style.boxShadow = ''; ln.style.borderRadius = ''; ln.style.padding = ''; ln.style.margin = ''; ln.style.maxWidth = '';
-      return;
-    }
-    var e = cfgNum('情報_余白', 8), side = cfgNum('情報_横余白', 6);
-    ln.style.position = 'absolute';
-    ln.style.zIndex = '6';
-    ln.style.background = 'rgba(255,255,255,0.92)';
-    ln.style.boxShadow = '0 2px 8px rgba(0,0,0,0.25)';
-    ln.style.borderRadius = '10px';
-    ln.style.padding = '6px 12px';
-    ln.style.margin = '0';
-    ln.style.left = (cv.offsetLeft + side) + 'px';
-    ln.style.maxWidth = Math.max(120, cv.clientWidth - side * 2) + 'px';
-    if (cfgStr('情報_位置', '上') === '下') {
-      var sb = 0;
-      if (msgOverlay && cfgStr('表示_メッセージ重ね', 'ON') !== 'OFF' && cfgStr('表示_メッセージ位置', '下') === '下' && msg) sb += msg.offsetHeight + cfgNum('メッセージ欄_余白', 8);
-      if (pl && pl.className === 'overlay' && cfgStr('プレイヤー欄_位置', '上') === '下') sb += pl.offsetHeight + cfgNum('プレイヤー欄_余白', 6);
-      ln.style.top = (cv.offsetTop + cv.clientHeight - ln.offsetHeight - e - sb) + 'px';
-    } else {
-      var st = 0;
-      if (pl && pl.className === 'overlay' && pl.style.display !== 'none' && cfgStr('プレイヤー欄_位置', '上') !== '下') st += pl.offsetHeight + cfgNum('プレイヤー欄_余白', 6);
-      if (msgOverlay && cfgStr('表示_メッセージ重ね', 'ON') !== 'OFF' && cfgStr('表示_メッセージ位置', '下') !== '下' && msg) st += msg.offsetHeight + cfgNum('メッセージ欄_余白', 8);
-      ln.style.top = (cv.offsetTop + e + st) + 'px';
-    }
-  }
   function layoutOverlays(){
     layoutMsgOverlay();
     var cv = document.getElementById('sgcv');
@@ -354,7 +318,6 @@ window.SG_PAGES_HOST = true;
         pl.style.top = ''; pl.style.left = ''; pl.style.width = '';
       }
     }
-    layoutInfoOverlay();
     if (roll) {
       var pos = cfgStr('ボタン_位置', 'プレーヤー下部');
       var iconPos = (pos === 'アイコン下' && boardShown && roll.children.length) ? sgTurnIconPos() : null;
@@ -461,9 +424,9 @@ window.SG_PAGES_HOST = true;
     if (res.melody) { setMelody(res.melody); startBgm(); }
     document.getElementById('sgtitle').textContent = '🎮 ' + res.gameName;
     var v = res.view || {};
-    document.getElementById('sgmsg').textContent = v.message || '';
+    var msgText = [v.message].concat(v.lines || []).filter(function(x){ return x; }).join('\n');
+    document.getElementById('sgmsg').textContent = msgText;
     if (v.message && v.message !== lastMsg) { lastMsg = v.message; jingle(v.message); }
-    document.getElementById('sglines').textContent = (v.lines || []).filter(function(x){ return x; }).join('\n');
     var cv = document.getElementById('sgcv');
     if (v.board && v.board.cells) { sgBoard = v.board; cv.style.display = 'block'; }
     else { sgBoard = null; cv.style.display = 'none'; if (typeof stopWalkAnim === 'function') stopWalkAnim(); }
@@ -643,8 +606,6 @@ window.SG_PAGES_HOST = true;
     });
   }
   function applyDisplaySettings(){
-    var lines = document.getElementById('sglines');
-    if (lines) lines.style.display = cfgStr('表示_情報行', 'ON') === 'OFF' ? 'none' : '';
     var pl = document.getElementById('sgplayers');
     if (pl) pl.style.display = cfgStr('表示_プレイヤー', 'ON') === 'OFF' ? 'none' : '';
     if (typeof layoutOverlays === 'function') layoutOverlays();
