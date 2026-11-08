@@ -784,6 +784,11 @@ window.SG_PAGES_HOST = true;
   try {
     document.addEventListener('pointerdown', sgUnlockAudio, true);
     document.addEventListener('touchstart', sgUnlockAudio, true);
+    // 別アプリへ切り替えて戻ると、端末が音声を止めたままにすることがある。
+    // ページが再び表示されたタイミングでも再開を試みる（課題No.55）
+    document.addEventListener('visibilitychange', function(){ if (!document.hidden) sgUnlockAudio(); });
+    window.addEventListener('pageshow', sgUnlockAudio);
+    window.addEventListener('focus', sgUnlockAudio);
   } catch (e) {}
   function sfxCoin(){ var a = ac(); if (!a || !musicOn) return; tone(88, a.currentTime, 0.09, 'square', 0.1); tone(93, a.currentTime + 0.09, 0.25, 'square', 0.1); }
   function sfxBad(){ var a = ac(); if (!a || !musicOn) return; tone(64, a.currentTime, 0.15, 'sawtooth', 0.07); tone(60, a.currentTime + 0.15, 0.3, 'sawtooth', 0.07); }
