@@ -670,6 +670,9 @@ window.SG_PAGES_HOST = true;
 
   // ===== Web Audio API: BGM と効果音（メロディはシートから読み込み） =====
   var AC = null, musicOn = true, bgmTimer = null, step = 0, nextT = 0;
+  // 音楽ON/OFFは端末に保存し、再読み込みしても前回の設定に戻るようにする（課題No.55）
+  try { if (localStorage.getItem('sg_music_on') === '0') musicOn = false; } catch (e) {}
+  function musicBtn_(){ try { var b = document.getElementById('musicbtn'); if (b) b.textContent = musicOn ? '🔊 音楽ON' : '🔇 音楽OFF'; } catch (e) {} }
   var LEAD = [72,76,79,81, 79,76,74,76, 72,76,79,81, 79,76,74,72, 74,76,79,76, 74,72,74,76, 67,72,76,74, 72,0,0,0];
   var BASS = [48,0,55,0, 53,0,60,0, 55,0,62,0, 48,0,55,0, 50,0,57,0, 53,0,60,0, 55,0,62,0, 48,0,55,0];
   var LIB = {}, MEL = null;
@@ -770,9 +773,18 @@ window.SG_PAGES_HOST = true;
   function stopBgm(){ if (bgmTimer) { clearInterval(bgmTimer); bgmTimer = null; } }
   function toggleMusic(){
     musicOn = !musicOn;
-    document.getElementById('musicbtn').textContent = musicOn ? '🔊 音楽ON' : '🔇 音楽OFF';
+    try { localStorage.setItem('sg_music_on', musicOn ? '1' : '0'); } catch (e) {}
+    musicBtn_();
     if (musicOn) { if (cur) startBgm(); } else stopBgm();
   }
+  // iPadなどでは、タップの流れの外（通信の応答など）で音声を再開しても止められたままになり、
+  // 音楽ONの表示でも音が出ないことがある。画面をタップした流れの中で再開し直す（課題No.55）。
+  // BGMの開始そのものは応答処理側のstartBgmが行い、ここでは音声の再開だけを行う。
+  function sgUnlockAudio(){ if (musicOn) ac(); }
+  try {
+    document.addEventListener('pointerdown', sgUnlockAudio, true);
+    document.addEventListener('touchstart', sgUnlockAudio, true);
+  } catch (e) {}
   function sfxCoin(){ var a = ac(); if (!a || !musicOn) return; tone(88, a.currentTime, 0.09, 'square', 0.1); tone(93, a.currentTime + 0.09, 0.25, 'square', 0.1); }
   function sfxBad(){ var a = ac(); if (!a || !musicOn) return; tone(64, a.currentTime, 0.15, 'sawtooth', 0.07); tone(60, a.currentTime + 0.15, 0.3, 'sawtooth', 0.07); }
   function sfxGoal(){ var a = ac(); if (!a || !musicOn) return; [72,76,79,84].forEach(function(m, i){ tone(m, a.currentTime + i * 0.1, 0.25, 'triangle', 0.14); }); }
@@ -783,6 +795,7 @@ window.SG_PAGES_HOST = true;
   }
 
   // ===== 初期化 =====
+  musicBtn_();
   google.script.run.withSuccessHandler(function(lib){ LIB = lib || {}; }).apiMelodyLib();
   var visDone = false, animDone = false, gamesStarted = false;
   function maybeStartGames(){ if (visDone && animDone && !gamesStarted) { gamesStarted = true; loadGames(); } }
