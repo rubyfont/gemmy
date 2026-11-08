@@ -154,6 +154,7 @@ window.SG_PAGES_HOST = true;
     if (!sgToken) { sgToken = 'u' + Date.now().toString(36) + Math.floor(Math.random() * 1e9).toString(36); localStorage.setItem('sg_token', sgToken); }
   } catch (e) { sgToken = 'u' + Date.now(); }
   var sesInfo = null, lastRev = '', joinDismissed = false, sgInFlight = false;
+  var sgBusyState = false, sgGameBusy = 0;
   function esc(s){ return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
 
   // ===== 画面遷移 =====
@@ -237,9 +238,23 @@ window.SG_PAGES_HOST = true;
     document.getElementById('sgmsg').textContent = 'エラー：' + (e && e.message ? e.message : e);
   }
   function setSgBusy(b){
+    sgBusyState = b;
     var bb = document.querySelectorAll('#sgbtns button, #sgtop button, #sgroll button, #sgpartybtns button');
     for (var k = 0; k < bb.length; k++) { bb[k].disabled = b; if (b) bb[k].className = 'rolling'; else bb[k].className = ''; }
     if (!b && typeof updateActionVis === 'function') updateActionVis();
+    sgPartyBtnSync_();
+  }
+  // 参加・退出ボタンの有効・無効は、基盤の通信とゲーム側の通信の両方を見て共通関数で判断する
+  function sgPartyBtnSync_(){
+    if (!document.getElementById('sgpartybtns')) return;
+    var off = sgBusyState || sgGameBusy > 0;
+    var btns = document.querySelectorAll('#sgpartybtns button');
+    for (var i = 0; i < btns.length; i++) btns[i].disabled = off;
+  }
+  // ゲーム側の通信の開始（+1）・終了（-1）を基盤へ知らせる
+  function sgGameBusy_(d){
+    sgGameBusy = Math.max(0, sgGameBusy + (d || 0));
+    sgPartyBtnSync_();
   }
   var msgOverlay = false;
   function layoutMsgOverlay(){
@@ -478,6 +493,7 @@ window.SG_PAGES_HOST = true;
       if (sesInfo.joined) { pbtn.className = 'sub'; pbtn.textContent = '退出する'; pbtn.onclick = function(){ sgLeave(); }; }
       else { pbtn.className = 'join'; pbtn.textContent = '参加する'; pbtn.onclick = function(){ sgShowJoin(); }; }
       pb.appendChild(pbtn);
+      sgPartyBtnSync_();
     }
     box.style.display = 'block';
     if (jp) jp.style.display = (sesInfo.joined || joinDismissed) ? 'none' : 'block';
@@ -520,7 +536,9 @@ window.SG_PAGES_HOST = true;
     var inp = document.getElementById('sgjoinname');
     var name = inp ? inp.value.replace(/^\s+|\s+$/g, '') : '';
     document.getElementById('sgjoinmsg').textContent = '参加しています…';
+    sgGameBusy_(1);
     google.script.run.withSuccessHandler(function(r){
+      sgGameBusy_(-1);
       if (r && r.ok) {
         try { if (name) localStorage.setItem('sg_name', name); } catch (e) {}
         joinDismissed = true;
@@ -530,6 +548,7 @@ window.SG_PAGES_HOST = true;
         document.getElementById('sgjoinmsg').textContent = (r && r.msg) || '参加できませんでした';
       }
     }).withFailureHandler(function(e){
+      sgGameBusy_(-1);
       document.getElementById('sgjoinmsg').textContent = 'エラー：' + (e && e.message ? e.message : e);
     }).apiSessionJoin(cur, name, sgToken, sgEnv_());
   }
@@ -539,7 +558,8 @@ window.SG_PAGES_HOST = true;
     updateParty();
   }
   function sgLeave(){
-    google.script.run.withSuccessHandler(function(){ sgLoad(); }).withFailureHandler(function(){ sgLoad(); }).apiSessionLeave(cur, sgToken);
+    sgGameBusy_(1);
+    google.script.run.withSuccessHandler(function(){ sgGameBusy_(-1); sgLoad(); }).withFailureHandler(function(){ sgGameBusy_(-1); sgLoad(); }).apiSessionLeave(cur, sgToken);
   }
   function sgPoll(){
     if (!cur || !sesInfo || !sesInfo.multi || sgInFlight || walkAnim || document.hidden) return;
