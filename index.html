@@ -676,7 +676,7 @@ window.SG_PAGES_HOST = true;
   var LEAD = [72,76,79,81, 79,76,74,76, 72,76,79,81, 79,76,74,72, 74,76,79,76, 74,72,74,76, 67,72,76,74, 72,0,0,0];
   var BASS = [48,0,55,0, 53,0,60,0, 55,0,62,0, 48,0,55,0, 50,0,57,0, 53,0,60,0, 55,0,62,0, 48,0,55,0];
   var LIB = {}, MEL = null;
-  function ac(){ if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){} } if (AC && AC.state === 'suspended') AC.resume(); return AC; }
+  function ac(){ if (!AC) { try { AC = new (window.AudioContext || window.webkitAudioContext)(); } catch(e){} } if (AC && AC.state !== 'running') { try { AC.resume(); } catch(e){} } return AC; }
   function mf(m){ return 440 * Math.pow(2, (m - 69) / 12); }
   function tone(midi, t, dur, type, vol){
     var a = ac(); if (!a || !midi) return;
@@ -777,13 +777,17 @@ window.SG_PAGES_HOST = true;
     musicBtn_();
     if (musicOn) { if (cur) startBgm(); } else stopBgm();
   }
+  // 音声を起こす処理は、この共通関数だけが行う（課題No.55）。
   // iPadなどでは、タップの流れの外（通信の応答など）で音声を再開しても止められたままになり、
-  // 音楽ONの表示でも音が出ないことがある。画面をタップした流れの中で再開し直す（課題No.55）。
+  // 音楽ONの表示でも音が出ないことがある。画面のどこをタップしても必ず通るdocumentの検知から
+  // この共通関数を呼び、タップの流れの中で再開する。個別の処理（ゲーム選択・ボタン等）からは呼ばない。
   // BGMの開始そのものは応答処理側のstartBgmが行い、ここでは音声の再開だけを行う。
   function sgUnlockAudio(){ if (musicOn) ac(); }
   try {
     document.addEventListener('pointerdown', sgUnlockAudio, true);
     document.addEventListener('touchstart', sgUnlockAudio, true);
+    document.addEventListener('touchend', sgUnlockAudio, true);
+    document.addEventListener('click', sgUnlockAudio, true);
     // 別アプリへ切り替えて戻ると、端末が音声を止めたままにすることがある。
     // ページが再び表示されたタイミングでも再開を試みる（課題No.55）
     document.addEventListener('visibilitychange', function(){ if (!document.hidden) sgUnlockAudio(); });
