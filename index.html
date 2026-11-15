@@ -1161,7 +1161,9 @@ window.SG_PAGES_HOST = true;
   function agRecogStop(){ try { if (agRecog) agRecog.stop(); } catch (e) {} }
   // ===== キャラクター（O1）：モデルタブのデータから組み立てる =====
   var agCharObj = null, agCharParts = {}, agCharMotions = {}, agCharCur = {}, agCharTgt = {}, agCharT0 = Date.now();
+  var agCharSheet = null;
   function agCharSetMotion(state){
+    if (agCharSheet) { try { agCharSheet.setMotion(state); } catch (e) {} return; }
     var key = state === 'thinking' ? 'thinking' : state === 'speaking' ? 'speaking' : state === 'launching' ? 'launch' : 'idle';
     agCharTgt = agCharMotions[key] || agCharMotions.idle || {};
   }
@@ -1285,13 +1287,21 @@ window.SG_PAGES_HOST = true;
     tick();
     return true;
   }
-  function agCharInit(character){
+  function agCharInit(character, displayCode){
     var ok = false;
     try {
       if (character && character.code) {
         var fn = (new Function('return (' + character.code + ')'))();
         var params = fn(window.THREE, {});
-        ok = agCharBuild(params);
+        if (displayCode) {
+          try {
+            var dfn = (new Function('return (' + displayCode + ')'))();
+            var disp = dfn(window.THREE, {});
+            var handle = disp && disp.create ? disp.create({ canvas: agEl('agcv'), stage: agEl('agstage'), params: params, log: agLog, isVisible: function(){ var el = agEl('agent'); return !!el && el.style.display !== 'none'; } }) : null;
+            if (handle) { agCharSheet = handle; ok = true; }
+          } catch (e) { agLog('シート表示の組み立てに失敗: ' + (e && e.message || e)); }
+        }
+        if (!ok) ok = agCharBuild(params);
       }
     } catch (e) { ok = false; agLog('キャラクターの組み立てに失敗: ' + (e && e.message || e)); }
     if (!ok) {
@@ -1323,7 +1333,7 @@ window.SG_PAGES_HOST = true;
         agIntentData = d.intent || null;
         agLoadSettings();
         agBuildModel();
-        agCharInit(d.character);
+        agCharInit(d.character, d.display);
       }
       agStartChat();
     }, function(){ agLoadSettings(); agCharInit(null); agStartChat(); });
