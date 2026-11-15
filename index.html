@@ -66,6 +66,9 @@ window.SG_PAGES_HOST = true;
     else if (name === 'apiSessionJoin') { p.game = args[0]; p.name = args[1]; p.token = args[2]; p.env = args[3]; }
     else if (name === 'apiSessionLeave') { p.game = args[0]; p.token = args[1]; }
     else if (name === 'apiSessionPoll') { p.game = args[0]; p.token = args[1]; p.rev = args[2]; }
+    else if (name === 'apiToken') { p.token = args[0]; p.game = args[1]; }
+    else if (name === 'apiLog') { p.game = args[0]; p.text = args[1]; p.utoken = args[2]; }
+    else if (name === 'apiIssueReport') { p.kind = args[0]; p.subject = args[1]; p.detail = args[2]; p.situation = args[3]; p.game = args[4]; p.system = args[5]; p.utoken = args[6]; }
     jsonp(p, ok, ng);
   }
   function Runner() { this._ok = null; this._ng = null; }
@@ -73,7 +76,7 @@ window.SG_PAGES_HOST = true;
   Runner.prototype.withFailureHandler = function (f) { this._ng = f; return this; };
   Runner.prototype.withUserObject = function () { return this; };
   ['apiGames', 'apiAnimCode', 'apiMelodyLib', 'apiVisualLib', 'apiScriptGet', 'apiScriptAct',
-   'apiSessionJoin', 'apiSessionLeave', 'apiSessionPoll'].forEach(function (name) {
+   'apiSessionJoin', 'apiSessionLeave', 'apiSessionPoll', 'apiToken', 'apiAgentData', 'apiLog', 'apiIssueReport'].forEach(function (name) {
     Runner.prototype[name] = function () {
       var args = Array.prototype.slice.call(arguments);
       call(name, args, this._ok, this._ng);
@@ -122,11 +125,43 @@ window.SG_PAGES_HOST = true;
   .sgjoin-card { background: #fff; border-radius: 12px; padding: 18px; margin: 60px auto 0; max-width: 420px; width: calc(100% - 32px); box-sizing: border-box; text-align: center; }
   .sgjoin-card input { font-size: 20px; padding: 12px; width: 100%; box-sizing: border-box; margin: 8px 0 12px; border: 2px solid #ccc; border-radius: 8px; }
   #sgjoinmsg { color: #a93226; min-height: 1.2em; }
+  /* ===== AIエージェントアプリ（S1 チャット画面） ===== */
+  #agent { max-width: 760px; margin: 0 auto; }
+  #agstage { position: relative; height: 62vh; min-height: 380px; border-radius: 12px; overflow: hidden; background: linear-gradient(#fdf6ec, #f3e2bb); border: 2px solid #d9b36a; }
+  #agcv { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+  #agimg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: none; background: #fdf6ec; }
+  #agchat { position: absolute; left: 0; right: 0; bottom: 0; max-height: 52%; overflow-y: auto; display: flex; flex-direction: column; padding: 8px 10px; box-sizing: border-box; }
+  .agb { max-width: 78%; padding: 10px 14px; border-radius: 16px; margin-top: 8px; font-size: 20px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; box-shadow: 0 1px 4px rgba(0,0,0,0.18); }
+  .agb.agent { align-self: flex-start; background: rgba(255,255,255,0.94); border: 2px solid #d9b36a; border-bottom-left-radius: 4px; }
+  .agb.agent.speaking { border-color: #c0392b; }
+  .agb.user { align-self: flex-end; background: rgba(138,90,40,0.92); color: #fff; border: 2px solid rgba(138,90,40,0.92); border-bottom-right-radius: 4px; }
+  #agbar { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+  .agtgl { flex: 0 0 auto; width: 56px; height: 56px; min-height: 56px; border-radius: 50%; padding: 0; display: flex; align-items: center; justify-content: center; background: #fff; color: #999; border: 2px solid #ccc; }
+  .agtgl svg { width: 30px; height: 30px; }
+  .agtgl.on { background: #8a5a28; color: #fff; border-color: #8a5a28; }
+  .agtgl:disabled { opacity: .45; }
+  #agtext { flex: 1 1 auto; font-size: 20px; padding: 14px 12px; border: 2px solid #d9b36a; border-radius: 12px; box-sizing: border-box; min-width: 0; }
+  #agsend { flex: 0 0 auto; width: 56px; height: 56px; min-height: 56px; border-radius: 50%; padding: 0; display: flex; align-items: center; justify-content: center; background: #c0392b; color: #fff; }
+  #agsend svg { width: 28px; height: 28px; }
+  #agsend:disabled { opacity: .45; }
 </style>
 </head>
 <body>
   <div id="animwarn"></div>
-  <div id="picker">
+  <div id="agent">
+    <div id="agstage">
+      <canvas id="agcv" width="800" height="620"></canvas>
+      <img id="agimg" alt="キャラクター">
+      <div id="agchat"></div>
+    </div>
+    <div id="agbar">
+      <button id="agspeak" class="agtgl on" title="読み上げ ON/OFF"><svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3z" fill="currentColor"/><path d="M16 8.5c1 1 1.6 2.2 1.6 3.5s-.6 2.5-1.6 3.5M18.5 6c1.7 1.6 2.6 3.7 2.6 6s-.9 4.4-2.6 6" stroke="currentColor" fill="none" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      <button id="agmic" class="agtgl" title="音声チャット ON/OFF"><svg viewBox="0 0 24 24"><rect x="9" y="2.5" width="6" height="11" rx="3" fill="currentColor"/><path d="M5.5 11.5c0 3.8 2.9 6.3 6.5 6.3s6.5-2.5 6.5-6.3M12 17.8V21M8.5 21h7" stroke="currentColor" fill="none" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+      <input id="agtext" type="text" placeholder="メッセージを入力" autocomplete="off">
+      <button id="agsend" title="送信"><svg viewBox="0 0 24 24"><path d="M21.5 2.5L2.8 10.7l6.8 2.6 2.6 6.8L21.5 2.5z" fill="currentColor"/></svg></button>
+    </div>
+  </div>
+  <div id="picker" style="display:none">
     <h1>🎲 ゲーム開発シート</h1>
     <p>遊ぶゲームを選んでください</p>
     <div id="gamelist">読み込み中…</div>
@@ -145,6 +180,7 @@ window.SG_PAGES_HOST = true;
     </div>
   </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
 <script>
   var cur = null;
   // ===== 同時プレイ（セッション）用の端末の控え =====
@@ -195,6 +231,7 @@ window.SG_PAGES_HOST = true;
     setMelody(null);
     clearGameScreen_();
     document.getElementById('picker').style.display = 'none';
+    var agEl2 = document.getElementById('agent'); if (agEl2) agEl2.style.display = 'none';
     document.getElementById('scriptgame').style.display = 'block';
     sgLoad();
   }
@@ -216,8 +253,7 @@ window.SG_PAGES_HOST = true;
     document.getElementById('sgroll').style.display = 'none';
     document.getElementById('sgbtns').innerHTML = '';
     document.getElementById('scriptgame').style.display = 'none';
-    document.getElementById('picker').style.display = 'block';
-    loadGames();
+    agShow();
   }
 
   // ===== ゲーム画面（本体コードが返す view を描く） =====
@@ -823,11 +859,506 @@ window.SG_PAGES_HOST = true;
     if (typeof window.sgJingle === 'function') sgJingle(msg);
   }
 
+
+  // ===== AIエージェントアプリ（ゲームNo.11・Webブラウザ版） =====
+  // 画面はチャット画面（S1）だけ。ゲームの選択は会話で行い、起動は基盤の selectGame を使う。
+  // 会話の状態は agState の1変数で管理し、画面の判断は共通関数 agJudge が行う（コーディング規約）。
+  var agState = 'idle'; // idle 待機中 / thinking 判定中 / speaking 応答中 / confirm 確認待ち / launching 起動処理中
+  var agCatalog = [], agPatterns = [], agSheetSettings = {}, agIntentData = null, agTfModel = null, agSheetKw = {};
+  var agVocab = null, agPending = null, agCandidates = [], agLastTopic = null;
+  var agSpeakOn = true, agVoiceOn = false, agUserToken = '', agKwConf = 0.8;
+  var agBooted = false, agCatalogFailed = false, agVoiceNoticeShown = false;
+  var agSpeechBubble = null, agPinned = true;
+
+  function agEl(id){ return document.getElementById(id); }
+  // 画面表示の初期化（共通関数）：状態・確認待ち・候補を初期状態に戻す
+  function agInitDisplay(){
+    agPending = null; agCandidates = [];
+    agSetState('idle');
+  }
+  // 状態の取得はこの共通関数だけが行う
+  function agGetState(){ return agState; }
+  function agSetState(st){ agState = st; agJudge(); }
+  // 画面の判断（共通関数）：状態変数を見て、ボタンの有効・無効とキャラクターのモーションを決める
+  function agJudge(){
+    var busy = (agState === 'thinking' || agState === 'launching');
+    var send = agEl('agsend'); if (send) send.disabled = busy;
+    var mic = agEl('agmic'); if (mic) mic.disabled = busy || !agRecogSupported();
+    var spk = agEl('agspeak'); if (spk) spk.className = 'agtgl' + (agSpeakOn ? ' on' : '');
+    if (mic) mic.className = 'agtgl' + (agVoiceOn ? ' on' : '');
+    agCharSetMotion(agState === 'confirm' ? 'idle' : agState);
+  }
+  // GASへの通信（共通関数）：呼び出し先がない環境では失敗として扱い、画面を止めない
+  function agApi(name, args, ok, ng){
+    try {
+      var run = google.script.run.withSuccessHandler(ok || function(){}).withFailureHandler(ng || function(){});
+      if (typeof run[name] !== 'function') { if (ng) ng(new Error('no api: ' + name)); return; }
+      run[name].apply(run, args);
+    } catch (e) { if (ng) ng(e); }
+  }
+  // ログの記録（共通関数）：ログタブへトークンつきで記録する
+  function agLog(text){ agApi('apiLog', ['agent', String(text || '').slice(0, 300), agUserToken], null, null); }
+  // エージェント連携口（共通関数）：報告はこの関数を通してだけ行う。画面には報告の操作を出さない
+  function agReportViaPort(kind, subject, detail, situation){
+    agApi('apiIssueReport', [kind, subject, detail, situation, 'agent', 'Webブラウザ版', agUserToken], null, null);
+  }
+  // 設定（読み上げ・音声チャット）はブラウザに保存する
+  function agLoadSettings(){
+    var dSpeak = true, dVoice = false;
+    if (String(agSheetSettings['読み上げ_初期値'] || '') === 'OFF') dSpeak = false;
+    if (String(agSheetSettings['音声チャット_初期値'] || '') === 'ON') dVoice = true;
+    var conf = Number(agSheetSettings['判定_キーワード優先確信度']);
+    if (!isNaN(conf) && conf > 0 && conf <= 1) agKwConf = conf;
+    try {
+      var s = JSON.parse(localStorage.getItem('ag_settings_v1') || 'null');
+      if (s) { agSpeakOn = !!s.speak; agVoiceOn = !!s.voice; return; }
+    } catch (e) {}
+    agSpeakOn = dSpeak; agVoiceOn = dVoice;
+  }
+  function agSaveSettings(){
+    try { localStorage.setItem('ag_settings_v1', JSON.stringify({ speak: agSpeakOn, voice: agVoiceOn })); } catch (e) {}
+  }
+  // 応答パターン（定数タブ）から種別で引く。なければ組み込みの文を使う
+  function agPattern(kind, fallback){
+    var list = agPatterns.filter(function(p){ return p.kind === kind; });
+    if (list.length) return list[Math.floor(Math.random() * list.length)].text;
+    return fallback || '';
+  }
+  function agPatternKey(key, fallback){
+    for (var i = 0; i < agPatterns.length; i++) if (agPatterns[i].key === key) return agPatterns[i].text;
+    return fallback || '';
+  }
+  function agGameById(id){ for (var i = 0; i < agCatalog.length; i++) if (agCatalog[i].id === id) return agCatalog[i]; return null; }
+  function agFill(text, game, extra){
+    var t = String(text || '');
+    if (game) { t = t.split('{ゲーム名}').join(game.name); t = t.split('{説明}').join(game.desc || ''); }
+    if (extra) for (var k in extra) t = t.split('{' + k + '}').join(extra[k]);
+    return t;
+  }
+  // 会話への表示（共通関数）：吹き出しを追加する
+  function agAddMsg(who, text){
+    var chat = agEl('agchat'); if (!chat) return null;
+    var d = document.createElement('div');
+    d.className = 'agb ' + who;
+    d.textContent = text;
+    chat.appendChild(d);
+    if (agPinned) chat.scrollTop = chat.scrollHeight;
+    return d;
+  }
+  // キャラクターの応答（共通関数）：吹き出しを出し、読み上げする
+  function agReply(text){
+    var b = agAddMsg('agent', text);
+    agSetState(agPending ? 'confirm' : 'idle');
+    agSpeak(text, b);
+  }
+
+  // ===== 意図判定（O4）：モデル＋キーワード照合（詳細設計書6.3） =====
+  function agNorm(t){ return String(t || '').toLowerCase().replace(/[\s。、！？!?,，]/g, ''); }
+  function agNgrams(t){
+    var s = agNorm(t), out = [];
+    for (var n = 2; n <= 3; n++) for (var i = 0; i + n <= s.length; i++) out.push(s.slice(i, i + n));
+    return out;
+  }
+  // キーワード辞書はカタログ（ゲーム名・説明）から自動で作る
+  function agGameKeywords(g){
+    var kws = [g.name, g.id];
+    var nm = String(g.name || '').replace(/風ゲーム$/, '').replace(/シミュレーター$/, '').replace(/ゲーム$/, '');
+    if (nm && nm.length >= 2) kws.push(nm);
+    String(g.desc || '').split(/[、。・\s]/).forEach(function(w){ if (w && w.length >= 2) kws.push(w); });
+    (agSheetKw[g.id] || []).forEach(function(w){ if (w) kws.push(w); });
+    return kws;
+  }
+  function agKwHits(text){
+    var s = agNorm(text), hits = [];
+    agCatalog.forEach(function(g){
+      var hit = agGameKeywords(g).some(function(k){ return k && s.indexOf(agNorm(k)) >= 0; });
+      if (hit) hits.push(g.id);
+    });
+    return hits;
+  }
+  function agDequant(q, n){
+    var bin = atob(q.b64), out = new Float32Array(n);
+    for (var i = 0; i < n; i++) { var v = bin.charCodeAt(i); if (v > 127) v -= 256; out[i] = v * q.scale; }
+    return out;
+  }
+  function agBuildModel(){
+    try {
+      var d = agIntentData;
+      if (!window.tf || !d || !d.w1 || !d.vocab) return;
+      var V = d.vocab.length, H = d.hidden, C = d.classes.length;
+      agVocab = {}; d.vocab.forEach(function(w, i){ agVocab[w] = i; });
+      var input = tf.input({ shape: [V] });
+      var h = tf.layers.dense({ units: H, activation: 'relu' }).apply(input);
+      var o = tf.layers.dense({ units: C, activation: 'softmax' }).apply(h);
+      var m = tf.model({ inputs: input, outputs: o });
+      m.layers[1].setWeights([tf.tensor2d(agDequant(d.w1, V * H), [V, H]), tf.tensor1d(d.b1)]);
+      m.layers[2].setWeights([tf.tensor2d(agDequant(d.w2, H * C), [H, C]), tf.tensor1d(d.b2)]);
+      agTfModel = m;
+    } catch (e) { agTfModel = null; agLog('意図判定モデルの読み込みに失敗: ' + (e && e.message || e)); }
+  }
+  function agModelJudge(text){
+    if (!agTfModel || !agVocab || !agIntentData) return null;
+    try {
+      var V = agIntentData.vocab.length, v = new Float32Array(V), sum = 0;
+      agNgrams(text).forEach(function(g){ if (agVocab[g] != null) { v[agVocab[g]] += 1; sum += 1; } });
+      if (!sum) return null;
+      for (var i = 0; i < V; i++) v[i] /= sum;
+      var p = agTfModel.predict(tf.tensor2d([Array.from(v)])).dataSync();
+      var best = 0; for (var j = 1; j < p.length; j++) if (p[j] > p[best]) best = j;
+      return { intent: agIntentData.classes[best], conf: p[best] };
+    } catch (e) { return null; }
+  }
+  // 判定の組み合わせ：キーワードが1つのゲームだけを指す場合は優先する。
+  // ただしモデルが非ゲーム意図を高い確信度で示す場合はモデルを優先する（先行検証V1の規則）。
+  function agJudgeIntent(text){
+    var hits = agKwHits(text);
+    var mj = agModelJudge(text);
+    if (hits.length === 1) {
+      if (!mj || mj.intent.indexOf('game:') === 0 || mj.conf < agKwConf) return { intent: 'game:' + hits[0], conf: mj ? mj.conf : 0, hits: hits };
+    }
+    if (mj) return { intent: mj.intent, conf: mj.conf, hits: hits };
+    if (hits.length === 1) return { intent: 'game:' + hits[0], conf: 0, hits: hits };
+    return { intent: 'other', conf: 0, hits: hits };
+  }
+  // ===== 会話管理（O3）：発話処理はこの共通関数だけが行う（文字入力も音声入力も同じ経路） =====
+  function agHandle(text){
+    text = String(text || '').replace(/^\s+|\s+$/g, '');
+    if (!text) return;
+    if (agGetState() === 'thinking' || agGetState() === 'launching') return;
+    agStopSpeech();
+    agAddMsg('user', text);
+    agSetState('thinking');
+    setTimeout(function(){ agRoute(text); }, 30);
+  }
+  function agRoute(text){
+    // 確認待ちのときは、肯定・否定の判定を優先する
+    if (agPending) {
+      var j0 = agJudgeIntent(text);
+      if (j0.intent === 'yes' || /^(はい|いいよ|うん|おねがい|お願い|それで)/.test(agNorm(text))) { agLaunch(agPending); return; }
+      if (j0.intent === 'no' || /^(いいえ|ちがう|やめ|別の|いや)/.test(agNorm(text))) {
+        agPending = null;
+        agReply('わかった。やめておくね。他に遊びたいゲームはある？');
+        return;
+      }
+      if (j0.intent.indexOf('game:') === 0) { agConfirm(j0.intent.slice(5), false); return; }
+      agReply(agFill(agPattern('確認', '{ゲーム名}でいいですか？'), agPending));
+      return;
+    }
+    // 候補を提示した直後は、候補の中から選ぶ発話を優先する
+    if (agCandidates.length) {
+      var hitsC = agKwHits(text);
+      var inCand = hitsC.filter(function(id){ return agCandidates.indexOf(id) >= 0; });
+      if (inCand.length === 1) { agCandidates = []; agConfirm(inCand[0], false); return; }
+      agCandidates = [];
+    }
+    // 「それを開いて」など、直近の話題のゲームを指す言い方
+    if (agLastTopic && /(それ|あれ)/.test(text) && /(開|始め|や|遊|する)/.test(text)) { agConfirm(agLastTopic, false); return; }
+    var j = agJudgeIntent(text);
+    if (j.intent.indexOf('game:') === 0) { agConfirm(j.intent.slice(5), false); return; }
+    if (j.intent === 'explain') {
+      var gE = (j.hits && j.hits.length === 1) ? agGameById(j.hits[0]) : (agLastTopic ? agGameById(agLastTopic) : null);
+      if (gE) { agConfirm(gE.id, true); return; }
+      if (agCatalog.length) {
+        agReply('遊べるゲームは、' + agCatalog.map(function(g){ return g.name; }).join('、') + 'だよ。どれで遊ぶ？');
+        return;
+      }
+      agReply(agPattern('聞き返し', 'ごめん、どのゲームか分からなかったよ。'));
+      return;
+    }
+    if (j.intent === 'greeting') { agReply(agPattern('あいさつ', 'やあ！　遊びたいゲームを教えてね。')); return; }
+    if (j.intent === 'smalltalk') { agReply(agPattern('雑談', 'そうだね！　ところで、遊びたいゲームはある？')); return; }
+    if (j.hits && j.hits.length >= 2) {
+      agCandidates = j.hits.slice();
+      var names = j.hits.map(function(id){ var g = agGameById(id); return g ? g.name : id; });
+      agReply(agFill(agPattern('候補提示', '候補が{件数}つあるよ。{候補}のどれにする？'), null, { '件数': names.length, '候補': names.join('と') }));
+      return;
+    }
+    agReply(agPattern('聞き返し', 'ごめん、どのゲームか分からなかったよ。たとえば「クイズをやりたい」のように言ってみて。'));
+  }
+  function agConfirm(gameId, withExplain){
+    var g = agGameById(gameId);
+    if (!g) { agReply(agPattern('聞き返し', 'ごめん、どのゲームか分からなかったよ。')); return; }
+    agPending = g; agLastTopic = g.id;
+    if (withExplain) agReply(agFill(agPatternKey('confirmAfterExplain', '{説明}　このゲームで遊ぶ？'), g));
+    else agReply(agFill(agPattern('確認', '{ゲーム名}でいいですか？'), g));
+  }
+  // ゲーム起動（O7）：基盤のゲーム読み込み（selectGame）を使う
+  function agLaunch(g){
+    if (!g) { agInitDisplay(); return; }
+    agPending = null; agCandidates = [];
+    agSetState('launching');
+    agAddMsg('agent', g.name + 'を始めるよ！');
+    setTimeout(function(){
+      try { selectGame(g.id); }
+      catch (e) {
+        agLog('ゲーム起動に失敗: ' + g.id + ' ' + (e && e.message || e));
+        agReportViaPort('バグ報告', 'ゲームの起動に失敗', 'ゲームID: ' + g.id, String(e && e.message || e));
+        agInitDisplay();
+      }
+    }, 800);
+  }
+  // ゲームから戻ってきたとき（backToPicker から呼ばれる）
+  function agShow(){
+    var el = agEl('agent'); if (el) el.style.display = 'block';
+    agInitDisplay();
+  }
+
+  // ===== 読み上げ（O8）・音声入力（O10） =====
+  function agJaVoice(){
+    try {
+      var vs = speechSynthesis.getVoices();
+      for (var i = 0; i < vs.length; i++) if (/^ja/i.test(vs[i].lang || '')) return vs[i];
+    } catch (e) {}
+    return null;
+  }
+  function agSpeak(text, bubble){
+    if (!agSpeakOn || !('speechSynthesis' in window)) { agSpeechDone(); return; }
+    try {
+      speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(text);
+      var v = agJaVoice(); if (v) u.voice = v;
+      u.lang = 'ja-JP';
+      agSpeechBubble = bubble || null;
+      if (agSpeechBubble) agSpeechBubble.className += ' speaking';
+      agSetState('speaking');
+      agRecogStop();
+      u.onend = function(){ agSpeechDone(); };
+      u.onerror = function(){ agSpeechDone(); };
+      speechSynthesis.speak(u);
+    } catch (e) { agSpeechDone(); }
+  }
+  function agStopSpeech(){
+    try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch (e) {}
+    if (agSpeechBubble) { agSpeechBubble.className = agSpeechBubble.className.replace(' speaking', ''); agSpeechBubble = null; }
+  }
+  function agSpeechDone(){
+    if (agSpeechBubble) { agSpeechBubble.className = agSpeechBubble.className.replace(' speaking', ''); agSpeechBubble = null; }
+    if (agGetState() === 'speaking') agSetState(agPending ? 'confirm' : 'idle');
+    if (agVoiceOn) agRecogStart();
+  }
+  var agRecog = null;
+  function agRecogSupported(){ return !!(window.SpeechRecognition || window.webkitSpeechRecognition); }
+  function agRecogStart(){
+    if (!agVoiceOn || !agRecogSupported()) return;
+    try {
+      if (!agRecog) {
+        var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+        agRecog = new SR();
+        agRecog.lang = 'ja-JP'; agRecog.continuous = true; agRecog.interimResults = false;
+        agRecog.onresult = function(ev){
+          for (var i = ev.resultIndex; i < ev.results.length; i++) {
+            if (ev.results[i].isFinal) agHandle(ev.results[i][0].transcript);
+          }
+        };
+        agRecog.onend = function(){ if (agVoiceOn && agGetState() !== 'speaking') { try { agRecog.start(); } catch (e) {} } };
+        agRecog.onerror = function(ev){
+          if (ev && ev.error === 'not-allowed') { agVoiceOn = false; agSaveSettings(); agJudge(); agAddMsg('agent', 'マイクが使えなかったよ。文字で入力してね。'); }
+        };
+      }
+      agRecog.start();
+    } catch (e) {}
+  }
+  function agRecogStop(){ try { if (agRecog) agRecog.stop(); } catch (e) {} }
+  // ===== キャラクター（O1）：モデルタブのデータから組み立てる =====
+  var agCharObj = null, agCharParts = {}, agCharMotions = {}, agCharCur = {}, agCharTgt = {}, agCharT0 = Date.now();
+  function agCharSetMotion(state){
+    var key = state === 'thinking' ? 'thinking' : state === 'speaking' ? 'speaking' : state === 'launching' ? 'launch' : 'idle';
+    agCharTgt = agCharMotions[key] || agCharMotions.idle || {};
+  }
+  function agTexCanvas(kind, conf){
+    var cv = document.createElement('canvas'); cv.width = cv.height = 128;
+    var cx = cv.getContext('2d');
+    cx.fillStyle = conf.base || '#ffffff'; cx.fillRect(0, 0, 128, 128);
+    if (kind === 'plaid') {
+      var cell = conf.cell || 32;
+      cx.fillStyle = conf.lineA || '#b5792e';
+      for (var x = 0; x < 128; x += cell) cx.fillRect(x, 0, conf.lineW || 5, 128);
+      for (var y = 0; y < 128; y += cell) cx.fillRect(0, y, 128, conf.lineW || 5);
+      cx.fillStyle = conf.lineB || '#f5e3ae';
+      for (var x2 = cell / 2; x2 < 128; x2 += cell) cx.fillRect(x2, 0, 2, 128);
+      for (var y2 = cell / 2; y2 < 128; y2 += cell) cx.fillRect(0, y2, 128, 2);
+    } else if (kind === 'cow') {
+      cx.fillStyle = conf.patch || '#2b2b2b';
+      var seed = 7;
+      for (var i = 0; i < 16; i++) {
+        seed = (seed * 37 + 11) % 997;
+        var bx = (seed % 110) + 6, by = ((seed * 3) % 110) + 6, br = 8 + (seed % 14);
+        cx.beginPath(); cx.ellipse(bx, by, br, br * 0.7, seed % 3, 0, Math.PI * 2); cx.fill();
+      }
+    }
+    var tx = new THREE.CanvasTexture(cv);
+    tx.wrapS = tx.wrapT = THREE.RepeatWrapping;
+    return tx;
+  }
+  function agCharBuild(params){
+    var cv = agEl('agcv'); if (!cv || !window.THREE) return false;
+    var renderer;
+    try { renderer = new THREE.WebGLRenderer({ canvas: cv, alpha: true, antialias: true }); }
+    catch (e) { return false; }
+    var stage = agEl('agstage');
+    var W = stage.clientWidth || 800, H = stage.clientHeight || 620;
+    renderer.setSize(W, H, false);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    var scene = new THREE.Scene();
+    var cam = new THREE.PerspectiveCamera(38, W / H, 0.1, 100);
+    cam.position.set(0, 3.1, 8.8); cam.lookAt(0, 2.25, 0);
+    scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+    var dl = new THREE.DirectionalLight(0xffffff, 0.6); dl.position.set(4, 8, 6); scene.add(dl);
+    var shadow = new THREE.Mesh(new THREE.CircleGeometry(1.7, 24), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.13 }));
+    shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.02; scene.add(shadow);
+    var texCache = {}, matCache = {};
+    function matFor(p){
+      if (p.texture && params.textures && params.textures[p.texture]) {
+        if (!texCache[p.texture]) texCache[p.texture] = agTexCanvas(p.texture, params.textures[p.texture]);
+        return new THREE.MeshStandardMaterial({ map: texCache[p.texture], roughness: 0.9 });
+      }
+      var c = p.color || '#cccccc';
+      if (!matCache[c]) matCache[c] = new THREE.MeshStandardMaterial({ color: c, roughness: p.roughness != null ? p.roughness : 0.85 });
+      return matCache[c];
+    }
+    function geoFor(p){
+      if (p.shape === 'box') return new THREE.BoxGeometry(p.size[0], p.size[1], p.size[2]);
+      if (p.shape === 'sphere') return new THREE.SphereGeometry(p.radius, 24, 18, 0, Math.PI * 2, 0, p.thetaLength || Math.PI);
+      if (p.shape === 'cylinder') return new THREE.CylinderGeometry(p.radiusTop != null ? p.radiusTop : p.radius, p.radius, p.height, 24);
+      if (p.shape === 'cone') return new THREE.ConeGeometry(p.radius, p.height, 24);
+      if (p.shape === 'torus') return new THREE.TorusGeometry(p.radius, p.tube, 12, 28, p.arc || Math.PI * 2);
+      if (p.shape === 'star') {
+        try {
+          var sh = new THREE.Shape(), R = p.radius || 0.17, r = R * 0.45;
+          for (var i = 0; i < 10; i++) {
+            var ang = Math.PI / 2 + i * Math.PI / 5, rad = i % 2 ? r : R;
+            var px = Math.cos(ang) * rad, py = Math.sin(ang) * rad;
+            if (i === 0) sh.moveTo(px, py); else sh.lineTo(px, py);
+          }
+          sh.closePath();
+          return new THREE.ExtrudeGeometry(sh, { depth: 0.07, bevelEnabled: false });
+        } catch (e) { return new THREE.CylinderGeometry(p.radius || 0.17, p.radius || 0.17, 0.07, 5); }
+      }
+      return new THREE.BoxGeometry(0.3, 0.3, 0.3);
+    }
+    var root = new THREE.Group();
+    var groups = { body: root };
+    var pv = params.pivots || {};
+    function mkGroup(name, parent, pos){
+      var g = new THREE.Group();
+      if (pos) g.position.set(pos[0], pos[1], pos[2]);
+      parent.add(g); groups[name] = g; return g;
+    }
+    var head = mkGroup('head', root, pv.head || [0, 3.32, 0]);
+    mkGroup('armL', root, pv.armL || [-0.98, 3.28, 0]);
+    mkGroup('armR', root, pv.armR || [0.98, 3.28, 0]);
+    mkGroup('hat', head, pv.hat || [0, 0.98, 0]);
+    (params.parts || []).forEach(function(p){
+      var mesh = new THREE.Mesh(geoFor(p), matFor(p));
+      if (p.pos) mesh.position.set(p.pos[0], p.pos[1], p.pos[2]);
+      if (p.scale) mesh.scale.set(p.scale[0], p.scale[1], p.scale[2]);
+      if (p.rotX) mesh.rotation.x = p.rotX;
+      if (p.rotY) mesh.rotation.y = p.rotY;
+      if (p.rotZ) mesh.rotation.z = p.rotZ;
+      (groups[p.group] || root).add(mesh);
+    });
+    scene.add(root);
+    agCharMotions = params.motions || {};
+    agCharObj = { renderer: renderer, scene: scene, cam: cam, root: root, head: groups.head, armL: groups.armL, armR: groups.armR, hat: groups.hat };
+    agCharSetMotion('idle');
+    function tick(){
+      requestAnimationFrame(tick);
+      var el = agEl('agent');
+      if (!el || el.style.display === 'none') return;
+      var t = (Date.now() - agCharT0) / 1000;
+      var keys = ['bob', 'bobSpeed', 'armSwing', 'headTiltZ', 'headTiltX', 'hatTip', 'nod', 'nodSpeed', 'wave'];
+      keys.forEach(function(k){
+        var tgt = agCharTgt[k] != null ? agCharTgt[k] : (k === 'bobSpeed' ? 1.6 : k === 'nodSpeed' ? 6 : 0);
+        agCharCur[k] = (agCharCur[k] != null ? agCharCur[k] : tgt) + (tgt - (agCharCur[k] != null ? agCharCur[k] : tgt)) * 0.07;
+      });
+      var c = agCharCur;
+      root.position.y = Math.sin(t * (c.bobSpeed || 1.6) * 2) * (c.bob || 0);
+      var waveK = Math.min(1, (c.wave || 0) / 0.45);
+      groups.armL.rotation.x = Math.sin(t * 2.6) * (c.armSwing || 0);
+      groups.armR.rotation.x = -Math.sin(t * 2.6) * (c.armSwing || 0) * (1 - waveK);
+      groups.armR.rotation.z = -2.0 * waveK + Math.sin(t * 7) * (c.wave || 0);
+      groups.head.rotation.z = c.headTiltZ || 0;
+      groups.head.rotation.x = (c.headTiltX || 0) + Math.sin(t * (c.nodSpeed || 6)) * (c.nod || 0);
+      groups.hat.rotation.x = (c.hatTip || 0) * 0.9;
+      renderer.render(scene, cam);
+    }
+    tick();
+    return true;
+  }
+  function agCharInit(character){
+    var ok = false;
+    try {
+      if (character && character.code) {
+        var fn = (new Function('return (' + character.code + ')'))();
+        var params = fn(window.THREE, {});
+        ok = agCharBuild(params);
+      }
+    } catch (e) { ok = false; agLog('キャラクターの組み立てに失敗: ' + (e && e.message || e)); }
+    if (!ok) {
+      var img = agEl('agimg'), cv = agEl('agcv');
+      if (img) { img.src = 'data:image/jpeg;base64,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'; img.style.display = 'block'; }
+      if (cv) cv.style.display = 'none';
+    }
+  }
+  // ===== 起動（O2・O9） =====
+  function agBoot(){
+    if (agBooted) { agShow(); return; }
+    agBooted = true;
+    try { agUserToken = localStorage.getItem('ag_user_token') || ''; } catch (e) {}
+    agApi('apiToken', [agUserToken, 'agent'], function(r){
+      if (r && r.token) { agUserToken = r.token; try { localStorage.setItem('ag_user_token', agUserToken); } catch (e) {} }
+    }, null);
+    agApi('apiGames', [], function(games){
+      agCatalog = games || [];
+    }, function(e){
+      agCatalogFailed = true;
+      agLog('ゲーム一覧の取得に失敗: ' + (e && e.message || e));
+      agReportViaPort('バグ報告', 'ゲーム一覧の取得に失敗', 'AIエージェントアプリ起動時にゲーム一覧が取得できなかった', String(e && e.message || e));
+    });
+    agApi('apiAgentData', [], function(d){
+      if (d) {
+        agPatterns = d.patterns || [];
+        agSheetKw = {}; (d.keywords || []).forEach(function(k){ agSheetKw[k.game] = k.words || []; });
+        agSheetSettings = d.settings || {};
+        agIntentData = d.intent || null;
+        agLoadSettings();
+        agBuildModel();
+        agCharInit(d.character);
+      }
+      agStartChat();
+    }, function(){ agLoadSettings(); agCharInit(null); agStartChat(); });
+    var chat = agEl('agchat');
+    if (chat) chat.addEventListener('scroll', function(){ agPinned = (chat.scrollTop + chat.clientHeight >= chat.scrollHeight - 40); });
+    var send = agEl('agsend'), input = agEl('agtext');
+    if (send) send.addEventListener('click', function(){ var v = input ? input.value : ''; if (input) input.value = ''; agHandle(v); });
+    if (input) input.addEventListener('keydown', function(ev){ if (ev.key === 'Enter') { var v = input.value; input.value = ''; agHandle(v); } });
+    var spk = agEl('agspeak');
+    if (spk) spk.addEventListener('click', function(){ agSpeakOn = !agSpeakOn; if (!agSpeakOn) agStopSpeech(); agSaveSettings(); agJudge(); });
+    var mic = agEl('agmic');
+    if (mic) mic.addEventListener('click', function(){
+      if (!agRecogSupported()) return;
+      agVoiceOn = !agVoiceOn; agSaveSettings(); agJudge();
+      if (agVoiceOn) agRecogStart(); else agRecogStop();
+    });
+    agJudge();
+  }
+  function agStartChat(){
+    agInitDisplay();
+    var greet = String(agSheetSettings['挨拶_文'] || '') || agPattern('あいさつ', 'やあ！　遊びたいゲームを教えてね。');
+    if (agCatalogFailed) agAddMsg('agent', agPatternKey('catalogFail', 'ごめん、今はゲームの一覧が読み込めなかったよ。ページを開き直してみて。'));
+    agReply(greet);
+    if (!agRecogSupported() && !agVoiceNoticeShown) {
+      agVoiceNoticeShown = true;
+      agAddMsg('agent', agPatternKey('voiceUnavailable', 'このブラウザは音声認識に対応していないよ。文字で入力してね。'));
+    }
+    if (agVoiceOn) agRecogStart();
+  }
+
   // ===== 初期化 =====
   musicBtn_();
   google.script.run.withSuccessHandler(function(lib){ LIB = lib || {}; }).apiMelodyLib();
   var visDone = false, animDone = false, gamesStarted = false;
-  function maybeStartGames(){ if (visDone && animDone && !gamesStarted) { gamesStarted = true; loadGames(); } }
+  function maybeStartGames(){ if (visDone && animDone && !gamesStarted) { gamesStarted = true; agBoot(); } }
   google.script.run.withSuccessHandler(function(v){ if (v) buildVisual(v); visDone = true; maybeStartGames(); }).withFailureHandler(function(){ visDone = true; maybeStartGames(); }).apiVisualLib();
   google.script.run.withSuccessHandler(function(lib){ installAnimCode(lib || {}); animDone = true; maybeStartGames(); }).withFailureHandler(function(){ showAnimWarning(['アニメコード全体']); animDone = true; maybeStartGames(); }).apiAnimCode();
 </script>
