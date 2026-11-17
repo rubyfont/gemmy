@@ -1,6 +1,95 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
+<script>
+window.SG_PAGES_HOST = true;
+(function () {
+  var API = 'https://script.google.com/macros/s/AKfycbz5XcPVAyCdzev2eyzOi5zNC2iHiaLuAZC4hYIUgZh1Y4hlLZ_3vP3Hs70gbbIa-9g3/exec';
+  var seq = 0;
+  function jsonp(params, ok, ng) {
+    seq++;
+    var cbName = '__sgCb' + seq + '_' + Date.now();
+    var done = false;
+    var script = document.createElement('script');
+    function finish(val, isErr) {
+      if (done) return; done = true;
+      try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
+      if (script.parentNode && script.parentNode.removeChild) script.parentNode.removeChild(script);
+      if (isErr) { if (ng) ng(val); } else if (ok) ok(val);
+    }
+    window[cbName] = function (d) { finish(d, false); };
+    var qs = ['callback=' + encodeURIComponent(cbName)];
+    for (var k in params) qs.push(k + '=' + encodeURIComponent(params[k] == null ? '' : String(params[k])));
+    script.src = API + '?' + qs.join('&');
+    script.onerror = function () { finish(new Error('通信エラー'), true); };
+    (document.head || document.body).appendChild(script);
+    setTimeout(function () { finish(new Error('通信タイムアウト'), true); }, 30000);
+  }
+  function postForm(params, ok, ng) {
+    seq++;
+    var ifr = document.createElement('iframe');
+    ifr.name = 'sgpost' + seq + '_' + Date.now();
+    ifr.style.display = 'none';
+    var form = document.createElement('form');
+    form.method = 'POST'; form.action = API; form.target = ifr.name; form.style.display = 'none';
+    for (var k in params) {
+      var inp = document.createElement('input');
+      inp.type = 'hidden'; inp.name = k; inp.value = params[k] == null ? '' : String(params[k]);
+      form.appendChild(inp);
+    }
+    var done = false;
+    function finish(err) {
+      if (done) return; done = true;
+      setTimeout(function () {
+        if (ifr.parentNode) ifr.parentNode.removeChild(ifr);
+        if (form.parentNode) form.parentNode.removeChild(form);
+      }, 0);
+      if (err) { if (ng) ng(err); } else if (ok) ok(null);
+    }
+    ifr.onload = function () { finish(null); };
+    document.body.appendChild(ifr); document.body.appendChild(form);
+    form.submit();
+    setTimeout(function () { finish(new Error('通信タイムアウト')); }, 30000);
+  }
+  function call(name, args, ok, ng) {
+    var p = { api: name };
+    if (name === 'apiScriptGet') { p.game = args[0]; p.token = args[1]; }
+    else if (name === 'apiScriptAct') {
+      p.game = args[0]; p.btn = args[1]; p.token = args[2];
+      if (String(p.btn).length > 1500) {
+        postForm(p, function () {
+          if (ok) ok({ view: { data: { ok: true, posted: true } }, session: null });
+        }, ng);
+        return;
+      }
+    }
+    else if (name === 'apiSessionJoin') { p.game = args[0]; p.name = args[1]; p.token = args[2]; p.env = args[3]; }
+    else if (name === 'apiSessionLeave') { p.game = args[0]; p.token = args[1]; }
+    else if (name === 'apiSessionPoll') { p.game = args[0]; p.token = args[1]; p.rev = args[2]; }
+    else if (name === 'apiToken') { p.token = args[0]; p.game = args[1]; }
+    else if (name === 'apiSheetCall') { p.name = args[0]; p.args = args[1]; }
+    else if (name === 'apiLog') { p.game = args[0]; p.text = args[1]; p.utoken = args[2]; }
+    else if (name === 'apiIssueReport') { p.kind = args[0]; p.subject = args[1]; p.detail = args[2]; p.situation = args[3]; p.game = args[4]; p.system = args[5]; p.utoken = args[6]; }
+    jsonp(p, ok, ng);
+  }
+  function Runner() { this._ok = null; this._ng = null; }
+  Runner.prototype.withSuccessHandler = function (f) { this._ok = f; return this; };
+  Runner.prototype.withFailureHandler = function (f) { this._ng = f; return this; };
+  Runner.prototype.withUserObject = function () { return this; };
+  ['apiGames', 'apiAnimCode', 'apiMelodyLib', 'apiVisualLib', 'apiScriptGet', 'apiScriptAct',
+   'apiSessionJoin', 'apiSessionLeave', 'apiSessionPoll', 'apiToken', 'apiSheetCall', 'apiLog', 'apiIssueReport'].forEach(function (name) {
+    Runner.prototype[name] = function () {
+      var args = Array.prototype.slice.call(arguments);
+      call(name, args, this._ok, this._ng);
+      this._ok = null; this._ng = null;
+    };
+  });
+  window.google = window.google || {};
+  window.google.script = window.google.script || {};
+  window.google.script.run = new Runner();
+})();
+</script>
+
 <meta charset="utf-8">
 </head>
 <body>
