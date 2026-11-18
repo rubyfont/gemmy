@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AIエージェント店舗アプリ 技術検証（PoC）</title>
+<style>
+  html { background: #0a1730; }
+  body { background: linear-gradient(#1d3a6e, #0a1730); color: #fff; font-family: sans-serif; margin: 0; padding: 14px; min-height: 100vh; }
+  h1 { font-size: 22px; margin: 6px 0 2px; }
+  h2 { font-size: 19px; margin: 0 0 8px; }
+  p, li { font-size: 15px; line-height: 1.55; }
+  .card { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.25); border-radius: 12px; padding: 14px; margin: 14px 0; }
+  button { font-size: 17px; font-weight: bold; padding: 13px 20px; margin: 6px 6px 6px 0; border: none; border-radius: 10px; background: #DB6C02; color: #fff; min-height: 52px; }
+  button:disabled { opacity: 0.45; }
+  button.sub { background: #446; }
+  select { font-size: 17px; padding: 10px; border-radius: 8px; max-width: 100%; }
+  .res { background: #06101f; border-radius: 8px; padding: 10px 12px; font-size: 15px; line-height: 1.6; white-space: pre-wrap; word-break: break-all; min-height: 24px; margin-top: 10px; }
+  .ok { color: #7fe08a; } .ng { color: #ff9a8a; } .warn { color: #ffd97f; }
+  video, canvas.gl { width: 100%; max-width: 560px; border-radius: 8px; background: #000; display: block; margin-top: 8px; }
+  progress { width: 100%; height: 18px; }
+  #summary { font-size: 14px; }
+  .note { color: #bcd; font-size: 13px; }
+</style>
+</head>
+<body>
+<h1>AIエージェント店舗アプリ 技術検証（PoC）</h1>
+<p>要件定義書 第1段階の5項目を、この端末で測るためのページです。各欄のボタンを押すと結果が表示されます。全部終わったら、一番下の「結果のまとめ」をコピーしてClaudeへ送ってください。</p>
+<div class="card">
+  <h2>この端末</h2>
+  <div class="res" id="devinfo">読み取り中…</div>
+</div>
+
+<div class="card">
+  <h2>検証1・4　LLM（店長AI）とWebGPU／WASM切り替え</h2>
+  <p>候補モデルを選んで読み込み、日本語の会話と、作業指示のJSON出力を試します。最初の応答までの時間と、1秒あたりの生成トークン数を測ります。ダウンロードは初回だけ数百MBあります。Wi-Fiで実行してください。</p>
+  <select id="llmmodel">
+    <option value="onnx-community/Qwen2.5-0.5B-Instruct">Qwen2.5-0.5B-Instruct（約0.5B）</option>
+    <option value="onnx-community/Qwen3-0.6B-ONNX">Qwen3-0.6B（約0.6B）</option>
+    <option value="onnx-community/gemma-3-270m-it-ONNX">gemma-3-270m-it（約0.27B・最小）</option>
+  </select>
+  <select id="llmdevice">
+    <option value="auto">自動（WebGPU優先）</option>
+    <option value="webgpu">WebGPU</option>
+    <option value="wasm">WASM（CPU）</option>
+  </select>
+  <br>
+  <button id="llmrun">モデルを読み込んで質問する</button>
+  <progress id="llmprog" value="0" max="1" style="display:none"></progress>
+  <div class="res" id="llmres">未実施</div>
+</div>
+
+<div class="card">
+  <h2>検証2　MediaPipe（動作取得）</h2>
+  <p>カメラを使って、手指と全身のランドマーク取得速度（fps）を10秒間測ります。映像は保存されません。全身と手指は同時に実行しません。</p>
+  <button id="mphand">手指の測定（Hand）</button>
+  <button id="mppose">全身の測定（Pose）</button>
+  <video id="mpvideo" playsinline muted></video>
+  <div class="res" id="mpres">未実施</div>
+</div>
+
+<div class="card">
+  <h2>検証3　GLBモデル表示とボーン操作</h2>
+  <p>指ボーン付きの人型GLB（X Bot、67関節）を読み込み、アニメーション再生と、プログラムからの指・腕のボーン操作、描画fpsを確認します。「Skyの手」では、今のSkyの手のGLB（33関節）も確認できます。</p>
+  <button id="glbrun">X Botで確認</button>
+  <button id="glbsky" class="sub">Skyの手で確認</button>
+  <div id="glwrap"></div>
+  <div class="res" id="glres">未実施</div>
+</div>
+
+<div class="card">
+  <h2>検証5　生成コードの隔離実行（サンドボックス）</h2>
+  <p>別オリジンのsandbox iframe＋Workerでコードを実行し、通常の計算ができること、ネットワークと親ページへのアクセスが遮断されること、無限ループが10秒で強制終了されることを確認します。</p>
+  <button id="sbrun">隔離実行の確認（約12秒）</button>
+  <div class="res" id="sbres">未実施</div>
+</div>
+
+<div class="card">
+  <h2>結果のまとめ</h2>
+  <div class="res" id="summary">（各検証を実行すると、ここに結果が1行ずつたまります）</div>
+  <button id="copybtn" class="sub">結果をコピーする</button>
+  <p class="note">コピーできない場合は、この画面のスクリーンショットでも構いません。</p>
+</div>
+
+<script>
+  window.pocLines = [];
+  window.pocLog = function (line) {
+    window.pocLines.push(line);
+    var s = document.getElementById('summary');
+    s.textContent = window.pocLines.join('\n');
+  };
+  (function () {
+    var gpu = ('gpu' in navigator) ? 'あり' : 'なし';
+    var info = 'ブラウザ: ' + navigator.userAgent + '\n'
+      + 'WebGPU: ' + gpu + ' ／ 画面: ' + screen.width + 'x' + screen.height
+      + ' ／ 論理コア数の目安: ' + (navigator.hardwareConcurrency || '不明')
+      + ' ／ メモリの目安(GB): ' + (navigator.deviceMemory || '不明');
+    document.getElementById('devinfo').textContent = info;
+    window.pocLog('端末: WebGPU=' + gpu + ' / ' + navigator.userAgent);
+    document.getElementById('copybtn').onclick = function () {
+      var t = window.pocLines.join('\n');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(t).then(function () { alert('コピーしました'); }, function () { alert('コピーできませんでした。スクリーンショットでお願いします'); });
+      } else { alert('このブラウザではコピーできません。スクリーンショットでお願いします'); }
+    };
+  })();
+</script>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+  // ===== 検証5: サンドボックス隔離実行 =====
+  (function () {
+    var btn = document.getElementById('sbrun');
+    var res = document.getElementById('sbres');
+    var iframe = null, pending = null;
+    var IFRAME_HTML = '<!DOCTYPE html><html><head><meta charset="utf-8">'
+      + '<meta http-equiv="Content-Security-Policy" content="connect-src \'none\'; script-src \'unsafe-inline\' blob:; worker-src blob:;">'
+      + '</head><body><script>'
+      + 'var worker = null;'
+      + 'function makeWorker(){'
+      + '  if (worker) { worker.terminate(); worker = null; }'
+      + '  var src = "self.onmessage = function(e){ var fn; try { fn = new Function(\'input\', e.data.code); } catch (err) { self.postMessage({ ok:false, error:\'compile: \' + err.message }); return; } try { var out = fn(e.data.input); self.postMessage({ ok:true, result: String(out) }); } catch (err) { self.postMessage({ ok:false, error: String((err && err.message) || err) }); } };";'
+      + '  worker = new Worker(URL.createObjectURL(new Blob([src], { type: "text/javascript" })));'
+      + '  worker.onmessage = function(e){ parent.postMessage({ type: "sbresult", data: e.data }, "*"); };'
+      + '  worker.onerror = function(){ parent.postMessage({ type: "sbresult", data: { ok:false, error: "worker error" } }, "*"); };'
+      + '}'
+      + 'makeWorker();'
+      + 'addEventListener("message", function(e){'
+      + '  var d = e.data || {};'
+      + '  if (d.type === "sbrun") { if (!worker) makeWorker(); worker.postMessage({ code: d.code, input: d.input }); }'
+      + '  if (d.type === "sbkill") { if (worker) { worker.terminate(); worker = null; } }'
+      + '});'
+      + '<\/script></body></html>';
+    window.addEventListener('message', function (e) {
+      if (!iframe || e.source !== iframe.contentWindow) return;
+      var d = e.data || {};
+      if (d.type === 'sbresult' && pending) { var p = pending; pending = null; p(d.data); }
+    });
+    function ensureIframe() {
+      if (iframe) return Promise.resolve();
+      return new Promise(function (resolve) {
+        iframe = document.createElement('iframe');
+        iframe.setAttribute('sandbox', 'allow-scripts');
+        iframe.style.display = 'none';
+        iframe.srcdoc = IFRAME_HTML;
+        iframe.onload = function () { setTimeout(resolve, 300); };
+        document.body.appendChild(iframe);
+      });
+    }
+    function run(code, input, timeoutMs) {
+      return new Promise(function (resolve) {
+        var started = Date.now();
+        var done = false;
+        var to = setTimeout(function () {
+          if (done) return; done = true; pending = null;
+          iframe.contentWindow.postMessage({ type: 'sbkill' }, '*');
+          resolve({ timeout: true, ms: Date.now() - started });
+        }, timeoutMs);
+        pending = function (data) {
+          if (done) return; done = true; clearTimeout(to);
+          data.ms = Date.now() - started;
+          resolve(data);
+        };
+        iframe.contentWindow.postMessage({ type: 'sbrun', code: code, input: input }, '*');
+      });
+    }
+    btn.onclick = async function () {
+      btn.disabled = true; res.textContent = '実施中…';
+      var lines = [];
+      try {
+        await ensureIframe();
+        var r1 = await run('return input.a + input.b;', { a: 2, b: 3 }, 5000);
+        lines.push(r1.ok && r1.result === '5' ? '通常の計算: OK（2+3=5、' + r1.ms + 'ms）' : '通常の計算: 失敗 ' + JSON.stringify(r1));
+        window.pocLog('[検証5] 通常計算 ' + (r1.ok && r1.result === '5' ? 'OK' : '失敗'));
+        var r2 = await run("var x = new XMLHttpRequest(); x.open('GET', 'https://example.com/', false); x.send(); return 'status=' + x.status;", {}, 5000);
+        lines.push(!r2.ok ? 'ネットワーク遮断: OK（外部通信はエラーで止まった）' : 'ネットワーク遮断: 失敗（通信できてしまった: ' + r2.result + '）');
+        window.pocLog('[検証5] ネットワーク遮断 ' + (!r2.ok ? 'OK' : '失敗'));
+        var r3 = await run("return window.parent.document.title;", {}, 5000);
+        lines.push(!r3.ok ? '親ページへのアクセス遮断: OK（DOMに触れなかった）' : '親ページへのアクセス遮断: 失敗');
+        window.pocLog('[検証5] 親DOM遮断 ' + (!r3.ok ? 'OK' : '失敗'));
+        res.textContent = lines.join('\n') + '\n無限ループの強制終了を確認中（10秒かかります）…';
+        var r4 = await run('while (true) {} return 1;', {}, 10000);
+        lines.push(r4.timeout ? '無限ループ: OK（' + Math.round(r4.ms / 100) / 10 + '秒で強制終了できた）' : '無限ループ: 失敗（終了しなかった）');
+        window.pocLog('[検証5] 無限ループ強制終了 ' + (r4.timeout ? 'OK (' + r4.ms + 'ms)' : '失敗'));
+        res.textContent = lines.join('\n');
+      } catch (e) {
+        res.textContent = 'エラー: ' + (e && e.message || e);
+        window.pocLog('[検証5] エラー ' + (e && e.message || e));
+      }
+      btn.disabled = false;
+    };
+  })();
+
+  // ===== 検証3: GLB表示とボーン操作 =====
+  (function () {
+    var res = document.getElementById('glres');
+    var renderer = null, scene = null, camera = null, mixer = null, raf = null, model = null;
+    function setup() {
+      if (renderer) return;
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setSize(560, 420);
+      renderer.domElement.className = 'gl';
+      renderer.domElement.style.maxWidth = '100%';
+      renderer.domElement.style.height = 'auto';
+      document.getElementById('glwrap').appendChild(renderer.domElement);
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x10243f);
+      camera = new THREE.PerspectiveCamera(40, 560 / 420, 0.1, 100);
+      scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+      var d = new THREE.DirectionalLight(0xffffff, 0.9); d.position.set(3, 6, 5); scene.add(d);
+    }
+    function stopAnim() { if (raf) cancelAnimationFrame(raf); raf = null; }
+    function load(file, label, curlNames, armName) {
+      setup(); stopAnim();
+      if (model) { scene.remove(model); model = null; }
+      res.textContent = label + ' を読み込み中…';
+      new THREE.GLTFLoader().load(file, function (gltf) {
+        model = gltf.scene;
+        scene.add(model);
+        var bones = [], fingers = 0, skinned = 0;
+        model.traverse(function (o) {
+          if (o.isBone) { bones.push(o); if (/Finger|Thumb|Index|Middle|Ring|Pinky|index|middle|ring|pinky|thumb/i.test(o.name)) fingers++; }
+          if (o.isSkinnedMesh) skinned++;
+        });
+        var box = new THREE.Box3().setFromObject(model);
+        var c = box.getCenter(new THREE.Vector3()), s = box.getSize(new THREE.Vector3());
+        var r = Math.max(s.x, s.y, s.z) || 1;
+        camera.position.set(c.x + r * 0.6, c.y + r * 0.25, c.z + r * 1.9);
+        camera.lookAt(c);
+        if (gltf.animations && gltf.animations.length) {
+          mixer = new THREE.AnimationMixer(model);
+          mixer.clipAction(gltf.animations[0]).play();
+        } else { mixer = null; }
+        var curled = 0;
+        bones.forEach(function (b) {
+          for (var i = 0; i < curlNames.length; i++) {
+            if (b.name.indexOf(curlNames[i]) >= 0) { b.rotation.x -= 0.9; curled++; break; }
+          }
+          if (armName && b.name.indexOf(armName) >= 0) { b.rotation.z += 0.7; }
+        });
+        var frames = 0, started = performance.now();
+        var clock = new THREE.Clock();
+        (function loop() {
+          raf = requestAnimationFrame(loop);
+          var dt = clock.getDelta();
+          if (mixer) mixer.update(dt);
+          renderer.render(scene, camera);
+          frames++;
+          if (performance.now() - started >= 5000) {
+            stopAnim();
+            var fps = Math.round(frames / 5 * 10) / 10;
+            res.textContent = label + ': 関節 ' + bones.length + '（うち指 ' + fingers + '）／ スキン付きメッシュ ' + skinned
+              + '\nボーン操作: ' + curled + ' 本の指ボーンを曲げた' + (armName ? ' ／ 腕ボーンも回転' : '')
+              + '\n描画fps（5秒平均）: ' + fps;
+            window.pocLog('[検証3] ' + label + ' 関節=' + bones.length + ' 指=' + fingers + ' 骨操作=' + curled + '本 fps=' + fps);
+          }
+        })();
+      }, undefined, function (e) {
+        res.textContent = label + ': 読み込みエラー ' + (e && e.message || e);
+        window.pocLog('[検証3] ' + label + ' 読み込みエラー');
+      });
+    }
+    document.getElementById('glbrun').onclick = function () {
+      load('xbot.glb', 'X Bot', ['RightHandIndex1', 'RightHandIndex2', 'RightHandIndex3'], 'RightArm');
+    };
+    document.getElementById('glbsky').onclick = function () {
+      load('sky.glb', 'Skyの手', ['index1.R', 'index2.R', 'index3.R'], null);
+    };
+  })();
+</script>
+
+<script type="module">
+  // ===== 検証2: MediaPipe 動作取得 =====
+  import { FilesetResolver, HandLandmarker, PoseLandmarker } from 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/vision_bundle.mjs';
+  const mpres = document.getElementById('mpres');
+  const video = document.getElementById('mpvideo');
+  const WASM = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14/wasm';
+  let mpBusy = false;
+  async function measure(kind) {
+    if (mpBusy) return; mpBusy = true;
+    document.getElementById('mphand').disabled = true;
+    document.getElementById('mppose').disabled = true;
+    mpres.textContent = (kind === 'hand' ? '手指' : '全身') + 'の測定を準備中…（カメラ許可が必要です）';
+    let stream = null, landmarker = null;
+    try {
+      const vision = await FilesetResolver.forVisionTasks(WASM);
+      const opts = {
+        baseOptions: {
+          modelAssetPath: kind === 'hand'
+            ? 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task'
+            : 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+          delegate: 'GPU'
+        },
+        runningMode: 'VIDEO', numPoses: 1, numHands: 2
+      };
+      landmarker = kind === 'hand' ? await HandLandmarker.createFromOptions(vision, opts) : await PoseLandmarker.createFromOptions(vision, opts);
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' }, audio: false });
+      video.srcObject = stream;
+      await video.play();
+      mpres.textContent = '測定中…（10秒間、' + (kind === 'hand' ? '手を映して' : '全身を映して') + 'ください）';
+      let frames = 0, detected = 0, last = -1, started = performance.now();
+      await new Promise((resolve) => {
+        function step() {
+          if (performance.now() - started >= 10000) { resolve(); return; }
+          if (video.readyState >= 2 && video.currentTime !== last) {
+            last = video.currentTime;
+            const r = landmarker.detectForVideo(video, performance.now());
+            frames++;
+            if (kind === 'hand') { if (r && r.landmarks && r.landmarks.length) detected++; }
+            else { if (r && r.landmarks && r.landmarks.length) detected++; }
+          }
+          requestAnimationFrame(step);
+        }
+        step();
+      });
+      const fps = Math.round(frames / 10 * 10) / 10;
+      const rate = frames ? Math.round(detected / frames * 100) : 0;
+      mpres.textContent = (kind === 'hand' ? '手指' : '全身') + ': 処理fps ' + fps + ' ／ 検出できたフレーム ' + rate + '%（10秒間）';
+      window.pocLog('[検証2] ' + (kind === 'hand' ? '手指' : '全身') + ' fps=' + fps + ' 検出率=' + rate + '%');
+    } catch (e) {
+      mpres.textContent = 'エラー: ' + (e && e.message || e);
+      window.pocLog('[検証2] ' + kind + ' エラー ' + (e && e.message || e));
+    } finally {
+      if (landmarker) { try { landmarker.close(); } catch (e) {} }
+      if (stream) { stream.getTracks().forEach((t) => t.stop()); }
+      video.srcObject = null;
+      document.getElementById('mphand').disabled = false;
+      document.getElementById('mppose').disabled = false;
+      mpBusy = false;
+    }
+  }
+  document.getElementById('mphand').onclick = () => measure('hand');
+  document.getElementById('mppose').onclick = () => measure('pose');
+</script>
+
+<script type="module">
+  // ===== 検証1・4: LLM と WebGPU/WASM =====
+  import { pipeline, env, TextStreamer } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.2';
+  env.useBrowserCache = true;
+  const res = document.getElementById('llmres');
+  const prog = document.getElementById('llmprog');
+  const btn = document.getElementById('llmrun');
+  btn.onclick = async () => {
+    btn.disabled = true;
+    const modelId = document.getElementById('llmmodel').value;
+    const want = document.getElementById('llmdevice').value;
+    let device = 'wasm';
+    if (want === 'wasm') device = 'wasm';
+    else if ('gpu' in navigator) device = 'webgpu';
+    else if (want === 'webgpu') { res.textContent = 'この端末・ブラウザではWebGPUが使えません。WASMで試してください。'; window.pocLog('[検証1] WebGPU不可'); btn.disabled = false; return; }
+    res.textContent = 'モデルを読み込み中…（初回はダウンロードに時間がかかります）';
+    prog.style.display = 'block'; prog.value = 0;
+    let generator = null;
+    try {
+      const files = {};
+      const t0 = performance.now();
+      generator = await pipeline('text-generation', modelId, {
+        dtype: 'q4', device,
+        progress_callback: (p) => {
+          if (p && p.file) { files[p.file] = p; }
+          let loaded = 0, total = 0;
+          Object.values(files).forEach((f) => { if (f.total) { loaded += f.loaded || 0; total += f.total; } });
+          if (total > 0) prog.value = loaded / total;
+        }
+      });
+      const loadMs = Math.round(performance.now() - t0);
+      prog.style.display = 'none';
+      // 会話テスト
+      let firstAt = 0, chunks = 0; const g0 = performance.now();
+      const streamer = new TextStreamer(generator.tokenizer, { skip_prompt: true, skip_special_tokens: true, callback_function: () => { if (!firstAt) firstAt = performance.now(); chunks++; } });
+      const out = await generator([{ role: 'user', content: 'こんにちは。あなたは店舗の店長です。お客さんへの挨拶を、20文字以内で言ってください。' }], { max_new_tokens: 40, do_sample: false, streamer });
+      const genMs = performance.now() - g0;
+      const ttft = firstAt ? Math.round(firstAt - g0) : -1;
+      const tps = chunks ? Math.round(chunks / (genMs / 1000) * 10) / 10 : 0;
+      let reply = '';
+      try { const gt = out[0].generated_text; reply = Array.isArray(gt) ? String(gt[gt.length - 1].content || '') : String(gt); } catch (e) { reply = '(応答の取り出しに失敗)'; }
+      // JSON出力テスト
+      let jsonOk = false;
+      try {
+        const out2 = await generator([{ role: 'user', content: '次の依頼をJSONだけの形式で表してください。形式: {"agent":"pc_worker","action":"generate_code","goal":"依頼内容","output":{"format":"xlsx"}}\n依頼: 売上データを月別に集計してエクセルファイルにして' }], { max_new_tokens: 120, do_sample: false });
+        const gt2 = out2[0].generated_text;
+        const text2 = Array.isArray(gt2) ? String(gt2[gt2.length - 1].content || '') : String(gt2);
+        const m = text2.match(/\{[\s\S]*\}/);
+        if (m) { const j = JSON.parse(m[0]); jsonOk = !!(j && j.agent && j.action); }
+      } catch (e) { jsonOk = false; }
+      res.textContent = 'モデル: ' + modelId + '\n実行方式: ' + device + ' ／ 読み込み時間: ' + Math.round(loadMs / 100) / 10 + '秒'
+        + '\n最初の応答まで: ' + (ttft >= 0 ? Math.round(ttft / 100) / 10 + '秒' : '不明') + ' ／ 生成速度: 約' + tps + 'トークン/秒'
+        + '\n店長の返答: ' + reply.trim()
+        + '\n作業指示JSON: ' + (jsonOk ? '正しく出せた' : '出せなかった（形式が崩れた）');
+      window.pocLog('[検証1] ' + modelId + ' 方式=' + device + ' 読込=' + Math.round(loadMs / 100) / 10 + 's TTFT=' + Math.round(ttft / 100) / 10 + 's 速度=' + tps + 'tok/s JSON=' + (jsonOk ? 'OK' : 'NG'));
+      window.pocLog('[検証4] WebGPU/WASM切り替え: ' + device + 'で動作');
+    } catch (e) {
+      prog.style.display = 'none';
+      res.textContent = 'エラー（' + device + '）: ' + (e && e.message || e);
+      window.pocLog('[検証1] エラー 方式=' + device + ' ' + (e && e.message || e));
+    } finally {
+      if (generator && generator.dispose) { try { await generator.dispose(); } catch (e) {} }
+      btn.disabled = false;
+    }
+  };
+</script>
+</body>
+</html>
