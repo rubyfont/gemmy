@@ -115,6 +115,12 @@ window.SG_PAGES_HOST = true;
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.17.0/dist/tf.min.js"></script>
 <script>
+  // Service Worker 登録（オフライン起動・再読み込み復旧対応）
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('./sw.js').catch(function () {});
+    });
+  }
   // 起動部（最小限）: ゲームエンジンと各ゲームのコードをシートから取得し、読み込み順に実行する。
   // 画面のhtmlタグと、この起動部だけをこのページに置き、画面の動作コードは
   // すべてゲーム管理シートのコードタブで管理する（AIゲーム設計規約 第20章）。
@@ -123,7 +129,7 @@ window.SG_PAGES_HOST = true;
     if (!w) return;
     if (failed && failed.length) {
       w.style.display = 'block';
-      w.textContent = '⚠ アニメコードの「' + failed.join('」「') + '」を読み込めませんでした。シート「アニメコード」の内容を確認してください（そのアニメーションは動きません）。';
+      w.textContent = '⚠ コードの「' + failed.join('」「') + '」を読み込めませんでした。シート「コード」の内容を確認してください。';
     } else {
       w.style.display = 'none';
     }
@@ -155,7 +161,7 @@ window.SG_PAGES_HOST = true;
     sgInstallBlocks_(lib || {});
     if (typeof window.sgEngineStart_ === 'function') window.sgEngineStart_();
     else sgBootFail_();
-  }).withFailureHandler(function(){ sgShowAnimWarning_(['アニメコード全体']); sgBootFail_(); }).apiAnimCode();
+  }).withFailureHandler(function(){ sgShowAnimWarning_(['コード全体']); sgBootFail_(); }).apiAnimCode();
 </script>
 </body>
 </html>
